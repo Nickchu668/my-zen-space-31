@@ -8,23 +8,15 @@ import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/hooks/use-toast';
 import { useGoogleSheetSync } from '@/hooks/useGoogleSheetSync';
 import { SyncStatusBadge } from '@/components/notebook/SyncStatusBadge';
+import { NoteRow } from '@/components/notebook/NoteRow';
 import { 
   BookOpen, 
   Plus, 
   Search, 
   Pin, 
-  MoreVertical,
-  Trash2,
-  Edit3,
   X,
   Check
 } from 'lucide-react';
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
 import { cn } from '@/lib/utils';
 
 interface Note {
@@ -36,15 +28,6 @@ interface Note {
   created_at: string;
   updated_at: string;
 }
-
-const colorOptions = [
-  { value: 'default', class: 'bg-card' },
-  { value: 'blue', class: 'bg-blue-50 dark:bg-blue-900/20' },
-  { value: 'green', class: 'bg-green-50 dark:bg-green-900/20' },
-  { value: 'yellow', class: 'bg-yellow-50 dark:bg-yellow-900/20' },
-  { value: 'pink', class: 'bg-pink-50 dark:bg-pink-900/20' },
-  { value: 'purple', class: 'bg-purple-50 dark:bg-purple-900/20' },
-];
 
 export function NotebookPage() {
   const [notes, setNotes] = useState<Note[]>([]);
@@ -72,7 +55,7 @@ export function NotebookPage() {
   if (!isAdmin) {
     return (
       <div className="page-container">
-        <div className="max-w-6xl mx-auto">
+        <div className="max-w-4xl mx-auto">
           <Card className="card-fun">
             <CardContent className="p-12 text-center">
               <BookOpen className="w-16 h-16 mx-auto mb-4 text-muted-foreground/50" />
@@ -147,10 +130,6 @@ export function NotebookPage() {
     await updateNote(note.id, { is_pinned: !note.is_pinned });
   };
 
-  const getColorClass = (color: string) => {
-    return colorOptions.find(c => c.value === color)?.class || 'bg-card';
-  };
-
   const filteredNotes = notes.filter(note =>
     note.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
     note.content?.toLowerCase().includes(searchQuery.toLowerCase())
@@ -161,7 +140,7 @@ export function NotebookPage() {
 
   return (
     <div className="page-container">
-      <div className="max-w-6xl mx-auto">
+      <div className="max-w-4xl mx-auto">
         {/* Header */}
         <div className="flex items-center justify-between mb-8">
           <div className="flex items-center gap-4">
@@ -185,7 +164,7 @@ export function NotebookPage() {
               className="btn-fun gradient-primary text-primary-foreground gap-2"
             >
               <Plus className="w-4 h-4" />
-              新增筆記
+              <span className="hidden sm:inline">新增筆記</span>
             </Button>
           </div>
         </div>
@@ -241,20 +220,19 @@ export function NotebookPage() {
 
         {/* Pinned notes */}
         {pinnedNotes.length > 0 && (
-          <div className="mb-8">
+          <div className="mb-6">
             <h2 className="text-sm font-medium text-muted-foreground mb-3 flex items-center gap-2">
               <Pin className="w-4 h-4" />
-              已釘選
+              已釘選 ({pinnedNotes.length})
             </h2>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            <div className="space-y-2">
               {pinnedNotes.map((note) => (
-                <NoteCard 
+                <NoteRow 
                   key={note.id} 
                   note={note} 
                   onTogglePin={togglePin}
                   onDelete={deleteNote}
                   onUpdate={updateNote}
-                  getColorClass={getColorClass}
                   isEditing={editingId === note.id}
                   setEditingId={setEditingId}
                 />
@@ -267,17 +245,18 @@ export function NotebookPage() {
         {otherNotes.length > 0 && (
           <div>
             {pinnedNotes.length > 0 && (
-              <h2 className="text-sm font-medium text-muted-foreground mb-3">其他筆記</h2>
+              <h2 className="text-sm font-medium text-muted-foreground mb-3">
+                其他筆記 ({otherNotes.length})
+              </h2>
             )}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            <div className="space-y-2">
               {otherNotes.map((note) => (
-                <NoteCard 
+                <NoteRow 
                   key={note.id} 
                   note={note} 
                   onTogglePin={togglePin}
                   onDelete={deleteNote}
                   onUpdate={updateNote}
-                  getColorClass={getColorClass}
                   isEditing={editingId === note.id}
                   setEditingId={setEditingId}
                 />
@@ -303,96 +282,14 @@ export function NotebookPage() {
             </CardContent>
           </Card>
         )}
+
+        {/* Notes count */}
+        {filteredNotes.length > 0 && (
+          <div className="mt-6 text-center text-sm text-muted-foreground">
+            共 {filteredNotes.length} 筆記錄
+          </div>
+        )}
       </div>
     </div>
-  );
-}
-
-interface NoteCardProps {
-  note: Note;
-  onTogglePin: (note: Note) => void;
-  onDelete: (id: string) => void;
-  onUpdate: (id: string, updates: Partial<Note>) => void;
-  getColorClass: (color: string) => string;
-  isEditing: boolean;
-  setEditingId: (id: string | null) => void;
-}
-
-function NoteCard({ note, onTogglePin, onDelete, onUpdate, getColorClass, isEditing, setEditingId }: NoteCardProps) {
-  const [editTitle, setEditTitle] = useState(note.title);
-  const [editContent, setEditContent] = useState(note.content || '');
-
-  const handleSave = () => {
-    onUpdate(note.id, { title: editTitle, content: editContent });
-    setEditingId(null);
-  };
-
-  if (isEditing) {
-    return (
-      <Card className={cn("card-fun animate-scale-in", getColorClass(note.color))}>
-        <CardContent className="p-4 space-y-3">
-          <Input
-            value={editTitle}
-            onChange={(e) => setEditTitle(e.target.value)}
-            className="input-fun font-semibold"
-          />
-          <Textarea
-            value={editContent}
-            onChange={(e) => setEditContent(e.target.value)}
-            className="input-fun min-h-[80px] resize-none"
-          />
-          <div className="flex justify-end gap-2">
-            <Button variant="ghost" size="sm" onClick={() => setEditingId(null)}>
-              取消
-            </Button>
-            <Button size="sm" onClick={handleSave} className="btn-fun gradient-primary text-primary-foreground">
-              保存
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
-    );
-  }
-
-  return (
-    <Card className={cn("card-fun group", getColorClass(note.color))}>
-      <CardContent className="p-4">
-        <div className="flex items-start justify-between mb-2">
-          <h3 className="font-semibold text-lg line-clamp-1">{note.title}</h3>
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="ghost" size="icon" className="opacity-0 group-hover:opacity-100 transition-opacity h-8 w-8">
-                <MoreVertical className="w-4 h-4" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              <DropdownMenuItem onClick={() => setEditingId(note.id)}>
-                <Edit3 className="w-4 h-4 mr-2" />
-                編輯
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => onTogglePin(note)}>
-                <Pin className="w-4 h-4 mr-2" />
-                {note.is_pinned ? '取消釘選' : '釘選'}
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => onDelete(note.id)} className="text-destructive">
-                <Trash2 className="w-4 h-4 mr-2" />
-                刪除
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-        </div>
-        {note.content && (
-          <p className="text-sm text-muted-foreground line-clamp-3 whitespace-pre-wrap">
-            {note.content}
-          </p>
-        )}
-        <div className="flex items-center justify-between mt-4 pt-3 border-t border-border/50">
-          <span className="text-xs text-muted-foreground">
-            {new Date(note.updated_at).toLocaleDateString('zh-TW')}
-          </span>
-          {note.is_pinned && <Pin className="w-3 h-3 text-primary" />}
-        </div>
-      </CardContent>
-    </Card>
   );
 }
