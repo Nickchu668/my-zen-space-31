@@ -68,7 +68,7 @@ export function DynamicPage() {
   const [error, setError] = useState<string | null>(null);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingItem, setEditingItem] = useState<PageItem | null>(null);
-  const [formData, setFormData] = useState({ title: '', content: '', url: '', category: '一般' });
+  const [formData, setFormData] = useState({ title: '', content: '', url: '', category: '一般', followers_count: '' });
   const [saving, setSaving] = useState(false);
   const [canEdit, setCanEdit] = useState(false);
   const [canAdd, setCanAdd] = useState(false);
@@ -247,6 +247,7 @@ export function DynamicPage() {
             content: formData.content.trim() || null,
             url: formData.url.trim() || null,
             category: formData.category.trim() || '一般',
+            followers_count: formData.followers_count.trim() || null,
           })
           .eq('id', editingItem.id);
 
@@ -261,6 +262,7 @@ export function DynamicPage() {
             content: formData.content.trim() || null,
             url: formData.url.trim() || null,
             category: formData.category.trim() || '一般',
+            followers_count: formData.followers_count.trim() || null,
             created_by: user?.id,
           });
 
@@ -270,7 +272,7 @@ export function DynamicPage() {
 
       setIsDialogOpen(false);
       setEditingItem(null);
-      setFormData({ title: '', content: '', url: '', category: '一般' });
+      setFormData({ title: '', content: '', url: '', category: '一般', followers_count: '' });
       await fetchItems(page.id);
     } catch (error: any) {
       toast.error('儲存失敗: ' + error.message);
@@ -286,6 +288,7 @@ export function DynamicPage() {
       content: item.content || '',
       url: item.url || '',
       category: item.category || '一般',
+      followers_count: item.followers_count || '',
     });
     setIsDialogOpen(true);
   };
@@ -305,7 +308,7 @@ export function DynamicPage() {
 
   const openDialog = () => {
     setEditingItem(null);
-    setFormData({ title: '', content: '', url: '', category: '一般' });
+    setFormData({ title: '', content: '', url: '', category: '一般', followers_count: '' });
     setIsDialogOpen(true);
   };
 
@@ -403,6 +406,19 @@ export function DynamicPage() {
                       onChange={(e) => setFormData({ ...formData, category: e.target.value })}
                     />
                   </div>
+                  {isInstagramUrl(formData.url) && (
+                    <div>
+                      <label className="text-sm font-medium mb-1 block flex items-center gap-2">
+                        <Users className="w-4 h-4" />
+                        追蹤者數量
+                      </label>
+                      <Input
+                        placeholder="例如: 15000 或 1.5M"
+                        value={formData.followers_count}
+                        onChange={(e) => setFormData({ ...formData, followers_count: e.target.value })}
+                      />
+                    </div>
+                  )}
                   <Button onClick={handleSubmit} disabled={saving} className="w-full">
                     {saving ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
                     {editingItem ? '更新' : '新增'}
@@ -444,15 +460,11 @@ export function DynamicPage() {
 
                 {/* Icon - Instagram avatar or generic icon */}
                 {isInstagramUrl(item.url) ? (
-                  <Avatar className="w-10 h-10 shrink-0">
-                    <AvatarImage 
-                      src={`https://unavatar.io/instagram/${getInstagramUsername(item.url)}`} 
-                      alt={item.title}
-                    />
-                    <AvatarFallback className="bg-gradient-to-br from-purple-500 via-pink-500 to-orange-400">
-                      <Instagram className="w-5 h-5 text-white" />
-                    </AvatarFallback>
-                  </Avatar>
+                  <div className="w-12 h-12 rounded-full shrink-0 bg-gradient-to-br from-purple-500 via-pink-500 to-orange-400 p-0.5">
+                    <div className="w-full h-full rounded-full bg-card flex items-center justify-center">
+                      <Instagram className="w-6 h-6 text-pink-500" />
+                    </div>
+                  </div>
                 ) : (
                   <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center shrink-0 group-hover:bg-primary/20 transition-colors">
                     {item.url ? (
