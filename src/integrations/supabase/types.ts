@@ -49,7 +49,7 @@ export type Database = {
       }
       pages: {
         Row: {
-          content: Json | null
+          content: string | null
           created_at: string
           created_by: string | null
           description: string | null
@@ -63,7 +63,7 @@ export type Database = {
           updated_at: string
         }
         Insert: {
-          content?: Json | null
+          content?: string | null
           created_at?: string
           created_by?: string | null
           description?: string | null
@@ -77,7 +77,7 @@ export type Database = {
           updated_at?: string
         }
         Update: {
-          content?: Json | null
+          content?: string | null
           created_at?: string
           created_by?: string | null
           description?: string | null

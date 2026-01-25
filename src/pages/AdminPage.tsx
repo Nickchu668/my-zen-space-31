@@ -128,7 +128,12 @@ export function AdminPage() {
       .select('*')
       .order('sort_order');
     
-    if (data) setPages(data);
+    if (data) {
+      setPages(data.map(page => ({
+        ...page,
+        content: typeof page.content === 'string' ? page.content : null,
+      })));
+    }
   };
 
   const fetchUserPageAccess = async () => {
