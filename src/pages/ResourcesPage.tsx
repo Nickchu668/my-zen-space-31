@@ -229,73 +229,82 @@ export function ResourcesPage() {
           </div>
         )}
 
-        {/* Resources grid */}
+        {/* Resources list */}
         {!loading && resources.length > 0 && (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          <div className="space-y-3">
             {resources.map((resource) => (
-              <Card key={resource.id} className="card-fun group">
-                <CardHeader className="pb-3">
-                  <div className="flex items-start justify-between">
-                    <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center group-hover:bg-primary/20 transition-colors">
-                      {resource.url ? (
-                        <Link2 className="w-5 h-5 text-primary" />
-                      ) : (
-                        <FileText className="w-5 h-5 text-primary" />
-                      )}
-                    </div>
-                    <div className="flex gap-1">
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => toggleStar(resource)}
-                        className={resource.is_starred ? 'text-yellow-500' : 'opacity-0 group-hover:opacity-100'}
-                      >
-                        <Star className={`w-4 h-4 ${resource.is_starred ? 'fill-current' : ''}`} />
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => handleEdit(resource)}
-                        className="opacity-0 group-hover:opacity-100"
-                      >
-                        <Pencil className="w-4 h-4" />
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => handleDelete(resource.id)}
-                        className="opacity-0 group-hover:opacity-100 text-destructive"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </Button>
-                    </div>
-                  </div>
-                  <CardTitle className="text-lg font-semibold mt-3">
-                    {resource.title}
-                  </CardTitle>
-                  {resource.content && (
-                    <CardDescription className="line-clamp-2">{resource.content}</CardDescription>
+              <div
+                key={resource.id}
+                className="flex items-center gap-4 p-4 rounded-xl bg-card border border-border hover:shadow-soft transition-all group"
+              >
+                {/* Icon */}
+                <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center shrink-0 group-hover:bg-primary/20 transition-colors">
+                  {resource.url ? (
+                    <Link2 className="w-5 h-5 text-primary" />
+                  ) : (
+                    <FileText className="w-5 h-5 text-primary" />
                   )}
-                </CardHeader>
-                <CardContent>
-                  <div className="flex items-center justify-between">
-                    <span className="px-2 py-1 rounded-lg bg-muted text-xs font-medium">
-                      {resource.category || '一般'}
-                    </span>
-                    {resource.url && (
-                      <a
-                        href={resource.url}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="flex items-center gap-1 text-sm text-primary hover:underline"
-                      >
-                        開啟連結
-                        <ExternalLink className="w-3 h-3" />
-                      </a>
+                </div>
+
+                {/* Content */}
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2">
+                    <h3 className="font-semibold truncate">{resource.title}</h3>
+                    {resource.is_starred && (
+                      <Star className="w-4 h-4 text-yellow-500 fill-current shrink-0" />
                     )}
                   </div>
-                </CardContent>
-              </Card>
+                  {resource.content && (
+                    <p className="text-sm text-muted-foreground truncate">{resource.content}</p>
+                  )}
+                </div>
+
+                {/* Category */}
+                <span className="px-2 py-1 rounded-lg bg-muted text-xs font-medium shrink-0 hidden sm:block">
+                  {resource.category || '一般'}
+                </span>
+
+                {/* Link */}
+                {resource.url && (
+                  <a
+                    href={resource.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center gap-1 text-sm text-primary hover:underline shrink-0 hidden md:flex"
+                  >
+                    開啟
+                    <ExternalLink className="w-3 h-3" />
+                  </a>
+                )}
+
+                {/* Actions */}
+                <div className="flex gap-1 shrink-0">
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => toggleStar(resource)}
+                    className={resource.is_starred ? 'text-yellow-500' : 'opacity-0 group-hover:opacity-100'}
+                  >
+                    <Star className={`w-4 h-4 ${resource.is_starred ? 'fill-current' : ''}`} />
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => handleEdit(resource)}
+                    className="opacity-0 group-hover:opacity-100"
+                  >
+                    <Pencil className="w-4 h-4" />
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => handleDelete(resource.id)}
+                    className="opacity-0 group-hover:opacity-100 text-destructive"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </Button>
+                </div>
+              </div>
             ))}
           </div>
         )}
