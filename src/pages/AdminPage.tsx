@@ -167,10 +167,16 @@ export function AdminPage() {
       .eq('user_id', userId);
 
     if (error) {
-      toast({ title: '更新失敗', variant: 'destructive' });
+      console.error('Toggle approval error:', error);
+      toast({ title: '更新失敗', description: error.message, variant: 'destructive' });
     } else {
+      // Update local state immediately for responsive UI
+      setUsers(prev => prev.map(user => 
+        user.id === userId 
+          ? { ...user, is_approved: !currentApproval }
+          : user
+      ));
       toast({ title: currentApproval ? '已撤銷用戶權限' : '已批准用戶' });
-      fetchUsers();
     }
   };
 
