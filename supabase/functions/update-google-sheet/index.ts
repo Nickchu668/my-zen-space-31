@@ -49,10 +49,10 @@ serve(async (req) => {
     }
 
     // Get request body
-    const { action, title, value } = await req.json();
+    const { action, title, content, value } = await req.json();
 
-    if (!action || !title) {
-      return new Response(JSON.stringify({ error: "Missing action or title" }), {
+    if (!action || (!title && !content)) {
+      return new Response(JSON.stringify({ error: "Missing action or identifier (title/content)" }), {
         status: 400,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
@@ -68,8 +68,8 @@ serve(async (req) => {
       });
     }
 
-    // Call the Google Apps Script
-    console.log("Calling Apps Script with:", { action, title, value: value || "刪除" });
+    // Call the Google Apps Script - send content for matching since title may be empty
+    console.log("Calling Apps Script with:", { action, title, content: content?.substring(0, 50), value: value || "刪除" });
     console.log("Apps Script URL:", appsScriptUrl.substring(0, 50) + "...");
     
     const response = await fetch(appsScriptUrl, {
@@ -80,6 +80,7 @@ serve(async (req) => {
       body: JSON.stringify({
         action,
         title,
+        content, // Send content for matching
         value: value || "刪除",
       }),
       redirect: "follow", // Important: Apps Script redirects after execution

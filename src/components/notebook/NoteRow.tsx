@@ -65,11 +65,12 @@ export function NoteRow({
   const handleDelete = async () => {
     setIsDeleting(true);
     try {
-      // First update Google Sheet to mark as deleted
+      // First update Google Sheet to mark as deleted (use content for matching since title column may be empty)
       const { data, error } = await supabase.functions.invoke('update-google-sheet', {
         body: {
           action: 'markDeleted',
           title: note.title,
+          content: note.content, // Send content for matching
           value: '刪除',
         },
       });
