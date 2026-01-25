@@ -40,7 +40,10 @@ export function DynamicPage() {
     } else if (!data) {
       setError('頁面不存在');
     } else {
-      setPage(data);
+      setPage({
+        ...data,
+        content: typeof data.content === 'string' ? data.content : null,
+      });
     }
     setLoading(false);
   };
