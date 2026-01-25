@@ -6,7 +6,8 @@ import {
   Pin, 
   MoreVertical,
   Trash2,
-  Edit3
+  Edit3,
+  Loader2
 } from 'lucide-react';
 import {
   DropdownMenu,
@@ -15,6 +16,8 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { cn } from '@/lib/utils';
+import { supabase } from '@/integrations/supabase/client';
+import { useToast } from '@/hooks/use-toast';
 
 interface Note {
   id: string;
@@ -29,7 +32,7 @@ interface Note {
 interface NoteRowProps {
   note: Note;
   onTogglePin: (note: Note) => void;
-  onDelete: (id: string) => void;
+  onDelete: (id: string, title: string) => void;
   onUpdate: (id: string, updates: Partial<Note>) => void;
   isEditing: boolean;
   setEditingId: (id: string | null) => void;
@@ -45,6 +48,8 @@ export function NoteRow({
 }: NoteRowProps) {
   const [editTitle, setEditTitle] = useState(note.title);
   const [editContent, setEditContent] = useState(note.content || '');
+  const [isDeleting, setIsDeleting] = useState(false);
+  const { toast } = useToast();
 
   const handleSave = () => {
     onUpdate(note.id, { title: editTitle, content: editContent });
@@ -55,6 +60,43 @@ export function NoteRow({
     setEditTitle(note.title);
     setEditContent(note.content || '');
     setEditingId(null);
+  };
+
+  const handleDelete = async () => {
+    setIsDeleting(true);
+    try {
+      // First update Google Sheet to mark as deleted
+      const { data, error } = await supabase.functions.invoke('update-google-sheet', {
+        body: {
+          action: 'markDeleted',
+          title: note.title,
+          value: '刪除',
+        },
+      });
+
+      if (error) {
+        console.error('Failed to update Google Sheet:', error);
+        toast({
+          title: '無法更新 Google Sheet',
+          description: error.message,
+          variant: 'destructive',
+        });
+      } else {
+        toast({
+          title: '已同步至 Google Sheet',
+          description: `「${note.title}」已標記為刪除`,
+        });
+      }
+
+      // Delete from database regardless
+      onDelete(note.id, note.title);
+    } catch (err) {
+      console.error('Delete error:', err);
+      // Still delete from database
+      onDelete(note.id, note.title);
+    } finally {
+      setIsDeleting(false);
+    }
   };
 
   if (isEditing) {
@@ -129,9 +171,13 @@ export function NoteRow({
               <Pin className="w-4 h-4 mr-2" />
               {note.is_pinned ? '取消釘選' : '釘選'}
             </DropdownMenuItem>
-            <DropdownMenuItem onClick={() => onDelete(note.id)} className="text-destructive">
-              <Trash2 className="w-4 h-4 mr-2" />
-              刪除
+            <DropdownMenuItem onClick={handleDelete} className="text-destructive" disabled={isDeleting}>
+              {isDeleting ? (
+                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+              ) : (
+                <Trash2 className="w-4 h-4 mr-2" />
+              )}
+              {isDeleting ? '刪除中...' : '刪除'}
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
