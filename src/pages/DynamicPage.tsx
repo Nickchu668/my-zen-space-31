@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
-import { FileText, Loader2, Plus, ExternalLink, Link2, Pencil, Trash2, Star, Instagram, Users, RefreshCw } from 'lucide-react';
+import { FileText, Loader2, Plus, ExternalLink, Link2, Pencil, Trash2, Star, Instagram, Users } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
@@ -72,7 +72,6 @@ export function DynamicPage() {
   const [saving, setSaving] = useState(false);
   const [canEdit, setCanEdit] = useState(false);
   const [canAdd, setCanAdd] = useState(false);
-  const [fetchingFollowers, setFetchingFollowers] = useState<string | null>(null);
 
   useEffect(() => {
     if (slug) {
@@ -229,34 +228,6 @@ export function DynamicPage() {
       toast.success(item.is_starred ? '已取消星標' : '已加入星標');
     } catch (error: any) {
       toast.error('操作失敗: ' + error.message);
-    }
-  };
-
-  const fetchInstagramFollowers = async (item: PageItem) => {
-    if (!item.url || !isInstagramUrl(item.url)) return;
-    
-    setFetchingFollowers(item.id);
-    try {
-      const { data, error } = await supabase.functions.invoke('fetch-instagram-data', {
-        body: { url: item.url, itemId: item.id }
-      });
-
-      if (error) throw error;
-      
-      if (data.success && data.followersCount) {
-        // Update local state
-        setItems(prev => prev.map(i => 
-          i.id === item.id ? { ...i, followers_count: data.followersCount } : i
-        ));
-        toast.success(`已獲取追蹤者數量: ${data.followersCount}`);
-      } else {
-        toast.error('無法抓取追蹤者資料');
-      }
-    } catch (error: any) {
-      console.error('Error fetching Instagram data:', error);
-      toast.error('抓取失敗: ' + (error.message || '未知錯誤'));
-    } finally {
-      setFetchingFollowers(null);
     }
   };
 
@@ -557,23 +528,6 @@ export function DynamicPage() {
                 {/* Actions - show if user can edit this item (is owner or has full edit permission) */}
                 {(canEdit || (user && item.created_by === user.id)) && (
                   <div className="flex gap-1 shrink-0">
-                    {/* Fetch Instagram followers button */}
-                    {isInstagramUrl(item.url) && (
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => fetchInstagramFollowers(item)}
-                        disabled={fetchingFollowers === item.id}
-                        className="opacity-0 group-hover:opacity-100"
-                        title="抓取追蹤者數量"
-                      >
-                        {fetchingFollowers === item.id ? (
-                          <Loader2 className="w-4 h-4 animate-spin" />
-                        ) : (
-                          <RefreshCw className="w-4 h-4" />
-                        )}
-                      </Button>
-                    )}
                     <Button
                       variant="ghost"
                       size="icon"
