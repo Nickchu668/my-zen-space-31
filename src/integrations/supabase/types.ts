@@ -53,7 +53,6 @@ export type Database = {
           content: string | null
           created_at: string
           created_by: string | null
-          followers_count: string | null
           id: string
           is_starred: boolean | null
           page_id: string
@@ -67,7 +66,6 @@ export type Database = {
           content?: string | null
           created_at?: string
           created_by?: string | null
-          followers_count?: string | null
           id?: string
           is_starred?: boolean | null
           page_id: string
@@ -81,7 +79,6 @@ export type Database = {
           content?: string | null
           created_at?: string
           created_by?: string | null
-          followers_count?: string | null
           id?: string
           is_starred?: boolean | null
           page_id?: string

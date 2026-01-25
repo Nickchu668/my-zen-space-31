@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
-import { FileText, Loader2, Plus, ExternalLink, Link2, Pencil, Trash2, Star, Users, RefreshCw } from 'lucide-react';
+import { FileText, Loader2, Plus, ExternalLink, Link2, Pencil, Trash2, Star } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
@@ -9,7 +9,6 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { useAuth } from '@/hooks/useAuth';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
-import { InstagramIcon } from '@/components/icons/InstagramIcon';
 
 interface PageData {
   id: string;
@@ -33,14 +32,7 @@ interface PageItem {
   created_by: string | null;
   creator_name: string | null;
   is_starred: boolean;
-  followers_count: string | null;
 }
-
-// Helper function to check if URL is Instagram
-const isInstagramUrl = (url: string | null): boolean => {
-  if (!url) return false;
-  return url.includes('instagram.com');
-};
 
 export function DynamicPage() {
   const { slug } = useParams<{ slug: string }>();
@@ -55,7 +47,6 @@ export function DynamicPage() {
   const [saving, setSaving] = useState(false);
   const [canEdit, setCanEdit] = useState(false);
   const [canAdd, setCanAdd] = useState(false);
-  const [fetchingInstagram, setFetchingInstagram] = useState<string | null>(null);
 
   useEffect(() => {
     if (slug) {
@@ -171,12 +162,11 @@ export function DynamicPage() {
       }
     }
 
-    // Map the data to include creator_name and followers_count
+    // Map the data to include creator_name
     const itemsWithCreator = itemsData.map((item) => ({
       ...item,
       creator_name: item.created_by ? profilesMap[item.created_by] || null : null,
       is_starred: item.is_starred || false,
-      followers_count: (item as any).followers_count || null,
     }));
 
     // Sort: starred items first, then by sort_order/created_at
@@ -426,16 +416,9 @@ export function DynamicPage() {
                   )} />
                 </Button>
 
-                {/* Icon - Instagram specific or generic */}
-                <div className={cn(
-                  "w-10 h-10 rounded-xl flex items-center justify-center shrink-0 transition-colors",
-                  isInstagramUrl(item.url) 
-                    ? "bg-gradient-to-br from-purple-500 via-pink-500 to-orange-400 group-hover:from-purple-600 group-hover:via-pink-600 group-hover:to-orange-500" 
-                    : "bg-primary/10 group-hover:bg-primary/20"
-                )}>
-                  {isInstagramUrl(item.url) ? (
-                    <InstagramIcon className="text-white" size={20} />
-                  ) : item.url ? (
+                {/* Icon */}
+                <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center shrink-0 group-hover:bg-primary/20 transition-colors">
+                  {item.url ? (
                     <Link2 className="w-5 h-5 text-primary" />
                   ) : (
                     <FileText className="w-5 h-5 text-primary" />
@@ -444,15 +427,8 @@ export function DynamicPage() {
 
                 {/* Content */}
                 <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2 flex-wrap">
+                  <div className="flex items-center gap-2">
                     <h3 className="font-semibold truncate">{item.title}</h3>
-                    {/* Followers badge for Instagram */}
-                    {isInstagramUrl(item.url) && item.followers_count && (
-                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-pink-100 dark:bg-pink-900/30 text-pink-700 dark:text-pink-300 text-xs font-medium">
-                        <Users className="w-3 h-3" />
-                        {item.followers_count}
-                      </span>
-                    )}
                     {item.creator_name && (
                       <span className="text-xs text-muted-foreground shrink-0">
                         by {item.creator_name}
