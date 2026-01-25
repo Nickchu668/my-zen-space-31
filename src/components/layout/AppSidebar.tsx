@@ -146,6 +146,11 @@ export function AppSidebar() {
       {/* Navigation */}
       <nav className="flex-1 p-4 space-y-2 overflow-y-auto">
         {pages.map((page) => {
+          // Hide notebook page for non-admin users
+          if (page.slug === 'notebook' && !isAdmin) {
+            return null;
+          }
+          
           const IconComponent = iconMap[page.icon] || FolderOpen;
           const isActive = location.pathname === `/app/${page.slug}`;
           

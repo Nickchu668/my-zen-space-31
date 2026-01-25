@@ -51,12 +51,29 @@ export function NotebookPage() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [newTitle, setNewTitle] = useState('');
   const [newContent, setNewContent] = useState('');
-  const { user } = useAuth();
+  const { user, isAdmin } = useAuth();
   const { toast } = useToast();
 
   useEffect(() => {
-    if (user) fetchNotes();
-  }, [user]);
+    if (user && isAdmin) fetchNotes();
+  }, [user, isAdmin]);
+
+  // Only admin can access this page
+  if (!isAdmin) {
+    return (
+      <div className="page-container">
+        <div className="max-w-6xl mx-auto">
+          <Card className="card-fun">
+            <CardContent className="p-12 text-center">
+              <BookOpen className="w-16 h-16 mx-auto mb-4 text-muted-foreground/50" />
+              <h3 className="text-xl font-semibold mb-2">無權限訪問</h3>
+              <p className="text-muted-foreground">此頁面僅限管理員使用</p>
+            </CardContent>
+          </Card>
+        </div>
+      </div>
+    );
+  }
 
   const fetchNotes = async () => {
     const { data, error } = await supabase
