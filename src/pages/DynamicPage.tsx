@@ -116,12 +116,10 @@ export function DynamicPage() {
   };
 
   const fetchItems = async (pageId: string) => {
-    const { data, error } = await supabase
+    // Fetch page items
+    const { data: itemsData, error } = await supabase
       .from('page_items')
-      .select(`
-        *,
-        profiles:created_by (display_name)
-      `)
+      .select('*')
       .eq('page_id', pageId)
       .order('sort_order', { ascending: true })
       .order('created_at', { ascending: false });
@@ -131,10 +129,34 @@ export function DynamicPage() {
       return;
     }
 
+    if (!itemsData || itemsData.length === 0) {
+      setItems([]);
+      return;
+    }
+
+    // Get unique creator IDs
+    const creatorIds = [...new Set(itemsData.map(item => item.created_by).filter(Boolean))] as string[];
+    
+    // Fetch profiles for creators
+    let profilesMap: Record<string, string> = {};
+    if (creatorIds.length > 0) {
+      const { data: profiles } = await supabase
+        .from('profiles')
+        .select('user_id, display_name')
+        .in('user_id', creatorIds);
+      
+      if (profiles) {
+        profilesMap = profiles.reduce((acc, p) => {
+          acc[p.user_id] = p.display_name || '';
+          return acc;
+        }, {} as Record<string, string>);
+      }
+    }
+
     // Map the data to include creator_name
-    const itemsWithCreator = (data || []).map((item: any) => ({
+    const itemsWithCreator = itemsData.map((item) => ({
       ...item,
-      creator_name: item.profiles?.display_name || null,
+      creator_name: item.created_by ? profilesMap[item.created_by] || null : null,
     }));
 
     setItems(itemsWithCreator);
