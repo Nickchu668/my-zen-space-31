@@ -24,7 +24,7 @@ function parseCSV(csvText: string): SheetRow[] {
   const headers = records[0];
   console.log("Detected headers:", headers);
 
-  // Find title and content column indices
+  // Find column indices
   const headerLower = headers.map(h => h.toLowerCase().trim());
   
   let titleIdx = headerLower.findIndex(h => h === 'title' || h === '標題');
@@ -39,22 +39,33 @@ function parseCSV(csvText: string): SheetRow[] {
     );
   }
 
+  // Find "顯示" column for visibility control
+  let visibilityIdx = headerLower.findIndex(h => h === '顯示' || h === 'display' || h === 'visible');
+
   if (titleIdx === -1 && headers.length > 0) titleIdx = 0;
   if (contentIdx === -1 && headers.length > 1) contentIdx = 1;
   
-  console.log("Title column index:", titleIdx, "Content column index:", contentIdx);
+  console.log("Title column index:", titleIdx, "Content column index:", contentIdx, "Visibility column index:", visibilityIdx);
 
   const rows: SheetRow[] = [];
   
   for (let i = 1; i < records.length; i++) {
     const values = records[i];
     
+    // Check visibility column - skip if marked as "刪除"
+    if (visibilityIdx >= 0 && visibilityIdx < values.length) {
+      const visibility = values[visibilityIdx].trim().toLowerCase();
+      if (visibility === '刪除' || visibility === 'delete' || visibility === 'deleted') {
+        console.log("Skipping deleted row:", i);
+        continue;
+      }
+    }
+    
     let title = titleIdx >= 0 && titleIdx < values.length ? values[titleIdx].trim() : '';
     let content = contentIdx >= 0 && contentIdx < values.length ? values[contentIdx].trim() : '';
 
     // If title is empty but content exists, use content as title (truncated)
     if (!title && content) {
-      // Get first line of content as title
       const firstLine = content.split('\n')[0].trim();
       title = firstLine.length > 100 ? firstLine.substring(0, 100) + '...' : firstLine;
     }
