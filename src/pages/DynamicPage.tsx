@@ -1,7 +1,7 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useParams } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
-import { FileText, Loader2, Plus, ExternalLink, Link2, Pencil, Trash2, Star, Instagram, Users, RefreshCw, Image as ImageIcon } from 'lucide-react';
+import { FileText, Loader2, Plus, ExternalLink, Link2, Pencil, Trash2, Star, Instagram, Users, RefreshCw, Image as ImageIcon, Images } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
@@ -10,6 +10,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { BatchOcrDialog } from '@/components/instagram/BatchOcrDialog';
 
 interface PageData {
   id: string;
@@ -88,6 +89,22 @@ export function DynamicPage() {
   const [canAdd, setCanAdd] = useState(false);
   const [fetchingFollowers, setFetchingFollowers] = useState<string | null>(null);
   const [ocrFollowers, setOcrFollowers] = useState<string | null>(null);
+  const [batchOcrOpen, setBatchOcrOpen] = useState(false);
+
+  // Filter IG items for batch OCR
+  const igItems = useMemo(
+    () => items.filter(i => isInstagramUrl(i.url)).map(i => ({
+      id: i.id,
+      title: i.title,
+      url: i.url,
+      followers_count: i.followers_count,
+    })),
+    [items]
+  );
+
+  const handleBatchOcrUpdate = (itemId: string, followersCount: string) => {
+    setItems(prev => prev.map(i => (i.id === itemId ? { ...i, followers_count: followersCount } : i)));
+  };
 
   const readFileAsDataUrl = (file: File): Promise<string> =>
     new Promise((resolve, reject) => {
@@ -495,71 +512,85 @@ export function DynamicPage() {
           </div>
           
           {canAdd && (
-            <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-              <DialogTrigger asChild>
-                <Button onClick={openDialog} className="btn-fun gradient-primary text-primary-foreground gap-2">
-                  <Plus className="w-4 h-4" />
-                  新增資料
+            <div className="flex gap-2">
+              {/* Batch OCR button - only show if there are IG items */}
+              {igItems.length > 0 && canEdit && (
+                <Button
+                  variant="outline"
+                  onClick={() => setBatchOcrOpen(true)}
+                  className="gap-2"
+                >
+                  <Images className="w-4 h-4" />
+                  <span className="hidden sm:inline">批量截圖辨識</span>
                 </Button>
-              </DialogTrigger>
-              <DialogContent className="sm:max-w-md">
-                <DialogHeader>
-                  <DialogTitle>{editingItem ? '編輯資料' : '新增資料'}</DialogTitle>
-                </DialogHeader>
-                <div className="space-y-4 mt-4">
-                  <div>
-                    <label className="text-sm font-medium mb-1 block">標題 *</label>
-                    <Input
-                      placeholder="輸入標題"
-                      value={formData.title}
-                      onChange={(e) => setFormData({ ...formData, title: e.target.value })}
-                    />
-                  </div>
-                  <div>
-                    <label className="text-sm font-medium mb-1 block">內容</label>
-                    <Textarea
-                      placeholder="輸入內容描述"
-                      value={formData.content}
-                      onChange={(e) => setFormData({ ...formData, content: e.target.value })}
-                      rows={3}
-                    />
-                  </div>
-                  <div>
-                    <label className="text-sm font-medium mb-1 block">連結</label>
-                    <Input
-                      placeholder="https://..."
-                      value={formData.url}
-                      onChange={(e) => setFormData({ ...formData, url: e.target.value })}
-                    />
-                  </div>
-                  <div>
-                    <label className="text-sm font-medium mb-1 block">類別</label>
-                    <Input
-                      placeholder="一般"
-                      value={formData.category}
-                      onChange={(e) => setFormData({ ...formData, category: e.target.value })}
-                    />
-                  </div>
-                  {isInstagramUrl(formData.url) && (
+              )}
+
+              <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+                <DialogTrigger asChild>
+                  <Button onClick={openDialog} className="btn-fun gradient-primary text-primary-foreground gap-2">
+                    <Plus className="w-4 h-4" />
+                    新增資料
+                  </Button>
+                </DialogTrigger>
+                <DialogContent className="sm:max-w-md">
+                  <DialogHeader>
+                    <DialogTitle>{editingItem ? '編輯資料' : '新增資料'}</DialogTitle>
+                  </DialogHeader>
+                  <div className="space-y-4 mt-4">
                     <div>
-                      <label className="text-sm font-medium mb-1 block flex items-center gap-2">
-                        <Users className="w-4 h-4" />
-                        追蹤者數量
-                      </label>
+                      <label className="text-sm font-medium mb-1 block">標題 *</label>
                       <Input
-                        placeholder="例如: 15000 或 1.5M"
-                        value={formData.followers_count}
-                        onChange={(e) => setFormData({ ...formData, followers_count: e.target.value })}
+                        placeholder="輸入標題"
+                        value={formData.title}
+                        onChange={(e) => setFormData({ ...formData, title: e.target.value })}
                       />
                     </div>
-                  )}
-                  <Button onClick={handleSubmit} disabled={saving} className="w-full">
-                    {saving ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
-                    {editingItem ? '更新' : '新增'}
-                  </Button>
-                </div>
-              </DialogContent>
-            </Dialog>
+                    <div>
+                      <label className="text-sm font-medium mb-1 block">內容</label>
+                      <Textarea
+                        placeholder="輸入內容描述"
+                        value={formData.content}
+                        onChange={(e) => setFormData({ ...formData, content: e.target.value })}
+                        rows={3}
+                      />
+                    </div>
+                    <div>
+                      <label className="text-sm font-medium mb-1 block">連結</label>
+                      <Input
+                        placeholder="https://..."
+                        value={formData.url}
+                        onChange={(e) => setFormData({ ...formData, url: e.target.value })}
+                      />
+                    </div>
+                    <div>
+                      <label className="text-sm font-medium mb-1 block">類別</label>
+                      <Input
+                        placeholder="一般"
+                        value={formData.category}
+                        onChange={(e) => setFormData({ ...formData, category: e.target.value })}
+                      />
+                    </div>
+                    {isInstagramUrl(formData.url) && (
+                      <div>
+                        <label className="text-sm font-medium mb-1 block flex items-center gap-2">
+                          <Users className="w-4 h-4" />
+                          追蹤者數量
+                        </label>
+                        <Input
+                          placeholder="例如: 15000 或 1.5M"
+                          value={formData.followers_count}
+                          onChange={(e) => setFormData({ ...formData, followers_count: e.target.value })}
+                        />
+                      </div>
+                    )}
+                    <Button onClick={handleSubmit} disabled={saving} className="w-full">
+                      {saving ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
+                      {editingItem ? '更新' : '新增'}
+                    </Button>
+                  </div>
+                </DialogContent>
+              </Dialog>
+            </div>
           )}
         </div>
 
@@ -745,6 +776,14 @@ export function DynamicPage() {
           </div>
         )}
       </div>
+
+      {/* Batch OCR Dialog */}
+      <BatchOcrDialog
+        open={batchOcrOpen}
+        onOpenChange={setBatchOcrOpen}
+        igItems={igItems}
+        onUpdate={handleBatchOcrUpdate}
+      />
     </div>
   );
 }
