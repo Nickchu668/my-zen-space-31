@@ -99,6 +99,7 @@ export type Database = {
           display_name: string | null
           email: string
           id: string
+          is_approved: boolean
           updated_at: string
           user_id: string
         }
@@ -108,6 +109,7 @@ export type Database = {
           display_name?: string | null
           email: string
           id?: string
+          is_approved?: boolean
           updated_at?: string
           user_id: string
         }
@@ -117,10 +119,49 @@ export type Database = {
           display_name?: string | null
           email?: string
           id?: string
+          is_approved?: boolean
           updated_at?: string
           user_id?: string
         }
         Relationships: []
+      }
+      user_page_access: {
+        Row: {
+          can_edit: boolean
+          can_view: boolean
+          granted_at: string
+          granted_by: string | null
+          id: string
+          page_id: string
+          user_id: string
+        }
+        Insert: {
+          can_edit?: boolean
+          can_view?: boolean
+          granted_at?: string
+          granted_by?: string | null
+          id?: string
+          page_id: string
+          user_id: string
+        }
+        Update: {
+          can_edit?: boolean
+          can_view?: boolean
+          granted_at?: string
+          granted_by?: string | null
+          id?: string
+          page_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "user_page_access_page_id_fkey"
+            columns: ["page_id"]
+            isOneToOne: false
+            referencedRelation: "pages"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       user_roles: {
         Row: {
@@ -155,6 +196,14 @@ export type Database = {
         }
         Returns: boolean
       }
+      can_edit_page: {
+        Args: { _page_id: string; _user_id: string }
+        Returns: boolean
+      }
+      can_view_page: {
+        Args: { _page_id: string; _user_id: string }
+        Returns: boolean
+      }
       get_user_role: {
         Args: { _user_id: string }
         Returns: Database["public"]["Enums"]["app_role"]
@@ -166,6 +215,7 @@ export type Database = {
         }
         Returns: boolean
       }
+      is_user_approved: { Args: { _user_id: string }; Returns: boolean }
     }
     Enums: {
       app_role: "admin" | "premium" | "member"
