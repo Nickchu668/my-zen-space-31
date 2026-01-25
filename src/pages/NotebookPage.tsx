@@ -115,13 +115,12 @@ export function NotebookPage() {
     }
   };
 
-  const deleteNote = async (id: string) => {
+  const deleteNote = async (id: string, _title?: string) => {
     const { error } = await supabase.from('notes').delete().eq('id', id);
 
     if (error) {
       toast({ title: '刪除失敗', variant: 'destructive' });
     } else {
-      toast({ title: '筆記已刪除' });
       fetchNotes();
     }
   };
