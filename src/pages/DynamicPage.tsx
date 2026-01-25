@@ -29,6 +29,7 @@ interface PageItem {
   sort_order: number;
   created_at: string;
   created_by: string | null;
+  creator_name: string | null;
 }
 
 export function DynamicPage() {
@@ -117,7 +118,10 @@ export function DynamicPage() {
   const fetchItems = async (pageId: string) => {
     const { data, error } = await supabase
       .from('page_items')
-      .select('*')
+      .select(`
+        *,
+        profiles:created_by (display_name)
+      `)
       .eq('page_id', pageId)
       .order('sort_order', { ascending: true })
       .order('created_at', { ascending: false });
@@ -127,7 +131,13 @@ export function DynamicPage() {
       return;
     }
 
-    setItems(data || []);
+    // Map the data to include creator_name
+    const itemsWithCreator = (data || []).map((item: any) => ({
+      ...item,
+      creator_name: item.profiles?.display_name || null,
+    }));
+
+    setItems(itemsWithCreator);
   };
 
   const handleSubmit = async () => {
@@ -339,7 +349,14 @@ export function DynamicPage() {
 
                 {/* Content */}
                 <div className="flex-1 min-w-0">
-                  <h3 className="font-semibold truncate">{item.title}</h3>
+                  <div className="flex items-center gap-2">
+                    <h3 className="font-semibold truncate">{item.title}</h3>
+                    {item.creator_name && (
+                      <span className="text-xs text-muted-foreground shrink-0">
+                        by {item.creator_name}
+                      </span>
+                    )}
+                  </div>
                   {item.content && (
                     <p className="text-sm text-muted-foreground truncate">{item.content}</p>
                   )}
