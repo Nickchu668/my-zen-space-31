@@ -1,13 +1,14 @@
 import { useState, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
-import { FileText, Loader2, Plus, ExternalLink, Link2, Pencil, Trash2 } from 'lucide-react';
+import { FileText, Loader2, Plus, ExternalLink, Link2, Pencil, Trash2, Star } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { useAuth } from '@/hooks/useAuth';
 import { toast } from 'sonner';
+import { cn } from '@/lib/utils';
 
 interface PageData {
   id: string;
@@ -30,6 +31,7 @@ interface PageItem {
   created_at: string;
   created_by: string | null;
   creator_name: string | null;
+  is_starred: boolean;
 }
 
 export function DynamicPage() {
@@ -164,9 +166,43 @@ export function DynamicPage() {
     const itemsWithCreator = itemsData.map((item) => ({
       ...item,
       creator_name: item.created_by ? profilesMap[item.created_by] || null : null,
+      is_starred: item.is_starred || false,
     }));
 
-    setItems(itemsWithCreator);
+    // Sort: starred items first, then by sort_order/created_at
+    const sortedItems = itemsWithCreator.sort((a, b) => {
+      if (a.is_starred !== b.is_starred) return a.is_starred ? -1 : 1;
+      return 0;
+    });
+
+    setItems(sortedItems);
+  };
+
+  const toggleStar = async (item: PageItem) => {
+    try {
+      const { error } = await supabase
+        .from('page_items')
+        .update({ is_starred: !item.is_starred })
+        .eq('id', item.id);
+
+      if (error) throw error;
+      
+      // Update local state
+      setItems(prev => {
+        const updated = prev.map(i => 
+          i.id === item.id ? { ...i, is_starred: !i.is_starred } : i
+        );
+        // Re-sort with starred first
+        return updated.sort((a, b) => {
+          if (a.is_starred !== b.is_starred) return a.is_starred ? -1 : 1;
+          return 0;
+        });
+      });
+      
+      toast.success(item.is_starred ? '已取消星標' : '已加入星標');
+    } catch (error: any) {
+      toast.error('操作失敗: ' + error.message);
+    }
   };
 
   const handleSubmit = async () => {
@@ -367,6 +403,19 @@ export function DynamicPage() {
                 key={item.id}
                 className="flex items-center gap-4 p-4 rounded-xl bg-card border border-border hover:shadow-soft transition-all group"
               >
+                {/* Star Button */}
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => toggleStar(item)}
+                  className="shrink-0"
+                >
+                  <Star className={cn(
+                    "w-5 h-5 transition-colors",
+                    item.is_starred ? "fill-star text-star-foreground" : "text-muted-foreground"
+                  )} />
+                </Button>
+
                 {/* Icon */}
                 <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center shrink-0 group-hover:bg-primary/20 transition-colors">
                   {item.url ? (

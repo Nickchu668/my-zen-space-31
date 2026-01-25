@@ -38,6 +38,9 @@
     
     --warning: 45 93% 47%;
     --warning-foreground: 45 93% 20%;
+    
+    --star: 45 93% 55%;
+    --star-foreground: 45 93% 47%;
 
     --border: 210 25% 88%;
     --input: 210 25% 88%;
@@ -99,6 +102,9 @@
     
     --warning: 45 90% 50%;
     --warning-foreground: 45 90% 15%;
+    
+    --star: 45 90% 55%;
+    --star-foreground: 45 90% 50%;
 
     --border: 215 25% 22%;
     --input: 215 25% 22%;

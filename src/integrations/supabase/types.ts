@@ -54,6 +54,7 @@ export type Database = {
           created_at: string
           created_by: string | null
           id: string
+          is_starred: boolean | null
           page_id: string
           sort_order: number | null
           title: string
@@ -66,6 +67,7 @@ export type Database = {
           created_at?: string
           created_by?: string | null
           id?: string
+          is_starred?: boolean | null
           page_id: string
           sort_order?: number | null
           title: string
@@ -78,6 +80,7 @@ export type Database = {
           created_at?: string
           created_by?: string | null
           id?: string
+          is_starred?: boolean | null
           page_id?: string
           sort_order?: number | null
           title?: string
