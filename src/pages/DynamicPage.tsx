@@ -16,6 +16,7 @@ interface PageData {
   icon: string;
   description: string | null;
   content: string | null;
+  allow_member_submit: boolean;
 }
 
 interface PageItem {
@@ -27,6 +28,7 @@ interface PageItem {
   category: string | null;
   sort_order: number;
   created_at: string;
+  created_by: string | null;
 }
 
 export function DynamicPage() {
@@ -41,6 +43,7 @@ export function DynamicPage() {
   const [formData, setFormData] = useState({ title: '', content: '', url: '', category: '一般' });
   const [saving, setSaving] = useState(false);
   const [canEdit, setCanEdit] = useState(false);
+  const [canAdd, setCanAdd] = useState(false);
 
   useEffect(() => {
     if (slug) {
@@ -50,14 +53,15 @@ export function DynamicPage() {
 
   useEffect(() => {
     if (page && user) {
-      checkEditPermission(page, user.id);
+      checkPermissions(page, user.id);
     }
   }, [page, user, isAdmin]);
 
-  const checkEditPermission = async (pageData: PageData, userId: string) => {
+  const checkPermissions = async (pageData: PageData, userId: string) => {
     // Admin can always edit
     if (isAdmin) {
       setCanEdit(true);
+      setCanAdd(true);
       return;
     }
 
@@ -69,7 +73,11 @@ export function DynamicPage() {
       .eq('page_id', pageData.id)
       .maybeSingle();
 
-    setCanEdit(data?.can_edit || false);
+    const hasEditPermission = data?.can_edit || false;
+    setCanEdit(hasEditPermission);
+    
+    // Can add if has edit permission OR page allows member submissions
+    setCanAdd(hasEditPermission || pageData.allow_member_submit);
   };
 
   const fetchPage = async (pageSlug: string) => {
@@ -98,6 +106,7 @@ export function DynamicPage() {
     setPage({
       ...data,
       content: typeof data.content === 'string' ? data.content : null,
+      allow_member_submit: data.allow_member_submit || false,
     });
 
     // Fetch page items
@@ -247,7 +256,7 @@ export function DynamicPage() {
             </div>
           </div>
           
-          {canEdit && (
+          {canAdd && (
             <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
               <DialogTrigger asChild>
                 <Button onClick={openDialog} className="btn-fun gradient-primary text-primary-foreground gap-2">
@@ -354,8 +363,8 @@ export function DynamicPage() {
                   </a>
                 )}
 
-                {/* Actions */}
-                {canEdit && (
+                {/* Actions - show if user can edit this item (is owner or has full edit permission) */}
+                {(canEdit || (user && item.created_by === user.id)) && (
                   <div className="flex gap-1 shrink-0">
                     <Button
                       variant="ghost"
@@ -384,7 +393,7 @@ export function DynamicPage() {
             <p className="text-muted-foreground">
               {contentHtml ? '尚無資料項目' : '此頁面尚無內容'}
             </p>
-            {canEdit && !contentHtml && (
+            {canAdd && !contentHtml && (
               <p className="text-sm text-muted-foreground mt-2">
                 點擊上方「新增資料」開始添加內容
               </p>
