@@ -241,17 +241,34 @@ export function DynamicPage() {
         body: { url: item.url, itemId: item.id }
       });
 
-      if (error) throw error;
-      
-      if (data.success && data.followersCount) {
-        // Update local state
-        setItems(prev => prev.map(i => 
-          i.id === item.id ? { ...i, followers_count: data.followersCount } : i
-        ));
-        toast.success(`已獲取追蹤者數量: ${data.followersCount}`);
-      } else {
-        toast.error(data.message || '無法抓取追蹤者資料');
+      if (error) {
+        toast.error('抓取失敗: ' + error.message);
+        return;
       }
+
+      if (!data?.success) {
+        toast.error(data?.error || data?.message || '無法抓取追蹤者資料');
+        return;
+      }
+
+      if (!data.followersCount) {
+        toast.error(data?.message || '無法擷取追蹤者數量');
+        return;
+      }
+
+      // Persist to DB (respects RLS; button only appears for editors/owners)
+      const { error: updateError } = await supabase
+        .from('page_items')
+        .update({ followers_count: data.followersCount })
+        .eq('id', item.id);
+
+      if (updateError) throw updateError;
+
+      // Update local state
+      setItems(prev => prev.map(i =>
+        i.id === item.id ? { ...i, followers_count: data.followersCount } : i
+      ));
+      toast.success(`已獲取追蹤者數量: ${data.followersCount}`);
     } catch (error: any) {
       console.error('Error fetching Instagram data:', error);
       toast.error('抓取失敗: ' + (error.message || '未知錯誤'));
