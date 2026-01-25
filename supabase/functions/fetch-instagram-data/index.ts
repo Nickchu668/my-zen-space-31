@@ -55,6 +55,103 @@ function extractFollowersFromProfileHtml(html: string): number | null {
   return null;
 }
 
+function parseAiFollowersToNumber(value: unknown): number | null {
+  if (value === null || value === undefined) return null;
+  const raw = String(value).trim();
+
+  // Accept plain integers (with optional commas)
+  if (/^\d[\d,]*$/.test(raw)) {
+    const n = Number(raw.replace(/,/g, ''));
+    return Number.isFinite(n) ? n : null;
+  }
+
+  // Accept suffixes like 11.1K / 1.2M
+  const suffix = raw.match(/^([\d.]+)\s*([KkMm])$/);
+  if (suffix) {
+    const base = Number(suffix[1]);
+    if (!Number.isFinite(base)) return null;
+    const mult = suffix[2].toUpperCase() === 'M' ? 1_000_000 : 1_000;
+    return Math.round(base * mult);
+  }
+
+  return null;
+}
+
+async function callLovableAiForFollowers({
+  apiKey,
+  model,
+  username,
+}: {
+  apiKey: string;
+  model: string;
+  username: string;
+}): Promise<{ followers: number | null; raw: string }>
+{
+  const resp = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${apiKey}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      model,
+      messages: [
+        {
+          role: 'system',
+          content:
+            'You are a data extraction assistant. Return ONLY JSON: {"found":true,"followers":NUMBER} or {"found":false,"reason":"..."}. followers MUST be an integer (no K/M). No other text.',
+        },
+        {
+          role: 'user',
+          content: `What is the current follower count for the Instagram account @${username}? If you are not sure, return {"found":false,"reason":"not confident"}.`,
+        },
+      ],
+      temperature: 0.1,
+    }),
+  });
+
+  if (!resp.ok) {
+    const t = await resp.text();
+    return { followers: null, raw: `ERROR ${resp.status}: ${t}` };
+  }
+
+  const data = await resp.json();
+  const content = data.choices?.[0]?.message?.content || '';
+  const jsonMatch = String(content).match(/\{[\s\S]*\}/);
+  if (!jsonMatch) return { followers: null, raw: String(content) };
+
+  try {
+    const parsed = JSON.parse(jsonMatch[0]);
+    if (!parsed?.found) return { followers: null, raw: jsonMatch[0] };
+    const followers = parseAiFollowersToNumber(parsed.followers);
+    return { followers, raw: jsonMatch[0] };
+  } catch {
+    return { followers: null, raw: jsonMatch[0] };
+  }
+}
+
+function pickConsensus(values: number[]): { value: number | null; confidence: 'high' | 'low' } {
+  if (values.length === 0) return { value: null, confidence: 'low' };
+  if (values.length === 1) return { value: values[0], confidence: 'low' };
+
+  // Find any pair within 2% difference
+  const sorted = [...values].sort((a, b) => a - b);
+  for (let i = 0; i < sorted.length; i++) {
+    for (let j = i + 1; j < sorted.length; j++) {
+      const a = sorted[i];
+      const b = sorted[j];
+      const diff = Math.abs(a - b);
+      const denom = Math.max(a, b, 1);
+      if (diff / denom <= 0.02) {
+        return { value: Math.round((a + b) / 2), confidence: 'high' };
+      }
+    }
+  }
+
+  // Otherwise just return median as low confidence
+  return { value: sorted[Math.floor(sorted.length / 2)], confidence: 'low' };
+}
+
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
@@ -241,72 +338,45 @@ Deno.serve(async (req) => {
       console.log('Mobile API attempt failed:', mobileError);
     }
 
-    // ===== Method 5: Use Lovable AI as last resort (may be stale/estimated) =====
+    // ===== Method 5: Try multiple AI models and take a consensus (still best-effort) =====
     const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY');
     if (LOVABLE_API_KEY) {
       try {
-        console.log('Trying Lovable AI search (last resort)...');
-        const aiResponse = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${LOVABLE_API_KEY}`,
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            model: 'google/gemini-3-flash-preview',
-            messages: [
-              {
-                role: 'system',
-                content: `You are a data extraction assistant. When asked about an Instagram account, search for the most recent public information available and extract the follower count. Return ONLY a JSON object with this exact format: {"followers": "NUMBER", "found": true} or {"found": false, "reason": "explanation"}. The followers number should be the raw number (e.g., "15000" not "15K"). Do not include any other text.`
-              },
-              {
-                role: 'user',
-                content: `What is the current follower count for the Instagram account @${username}? Search for the most recent publicly available information about this account.`
-              }
-            ],
-            temperature: 0.1,
-          }),
-        });
+        const models = [
+          'google/gemini-3-flash-preview',
+          'google/gemini-2.5-pro',
+          'openai/gpt-5-mini',
+        ];
 
-        if (aiResponse.ok) {
-          const aiData = await aiResponse.json();
-          const content = aiData.choices?.[0]?.message?.content || '';
-          console.log('AI response:', content);
+        console.log('Trying AI consensus with models:', models.join(', '));
 
-          try {
-            const jsonMatch = content.match(/\{[\s\S]*\}/);
-            if (jsonMatch) {
-              const parsed = JSON.parse(jsonMatch[0]);
-              if (parsed.found && parsed.followers) {
-                // Mark as estimate if it looks like a rounded/estimated value
-                const rawFollowers = String(parsed.followers);
-                const isEstimate = /[KkMm]$/.test(rawFollowers) || 
-                                   (rawFollowers.length > 3 && rawFollowers.endsWith('00'));
-                
-                console.log('Found followers via AI:', parsed.followers, isEstimate ? '(estimate)' : '');
-                return new Response(
-                  JSON.stringify({
-                    success: true,
-                    followersCount: parsed.followers,
-                    method: 'ai-search',
-                    isEstimate,
-                    message: isEstimate 
-                      ? '透過 AI 搜尋獲取資料（可能為估算值）' 
-                      : '成功透過 AI 搜尋獲取資料',
-                  }),
-                  { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-                );
-              }
-            }
-          } catch (parseError) {
-            console.log('Failed to parse AI response as JSON:', parseError);
-          }
-        } else {
-          const errorText = await aiResponse.text();
-          console.error('AI API error:', aiResponse.status, errorText);
+        const results = await Promise.all(
+          models.map((model) => callLovableAiForFollowers({ apiKey: LOVABLE_API_KEY, model, username }))
+        );
+
+        const values = results.map(r => r.followers).filter((n): n is number => typeof n === 'number');
+        const { value, confidence } = pickConsensus(values);
+
+        // Hard guardrails: only return AI-derived result when confidence is HIGH.
+        // Otherwise we'd rather fail than save a wrong number.
+        if (value !== null && confidence === 'high' && value > 0 && value < 100_000_000) {
+          console.log('AI consensus followers:', value, 'confidence:', confidence, 'raw:', results.map(r => r.raw));
+          return new Response(
+            JSON.stringify({
+              success: true,
+              followersCount: String(value),
+              method: 'ai-consensus',
+              confidence,
+              isEstimate: true,
+              message: '透過多模型一致性推定（仍可能有誤差）',
+            }),
+            { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
         }
+
+        console.log('AI consensus not confident enough. Values:', values, 'raw:', results.map(r => r.raw));
       } catch (aiError) {
-        console.error('AI search failed:', aiError);
+        console.error('AI consensus failed:', aiError);
       }
     }
 
@@ -315,7 +385,7 @@ Deno.serve(async (req) => {
       JSON.stringify({
         success: false,
         error: '所有方法皆無法獲取 Instagram 資料。建議手動輸入追蹤者數量，或使用官方 Instagram Graph API。',
-        triedMethods: ['firecrawl', 'profile-html', 'web-api', 'mobile-api', 'ai-search'],
+        triedMethods: ['firecrawl', 'profile-html', 'web-api', 'mobile-api', 'ai-consensus'],
       }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );

@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
-import { FileText, Loader2, Plus, ExternalLink, Link2, Pencil, Trash2, Star, Instagram, Users, RefreshCw } from 'lucide-react';
+import { FileText, Loader2, Plus, ExternalLink, Link2, Pencil, Trash2, Star, Instagram, Users, RefreshCw, Image as ImageIcon } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
@@ -87,6 +87,56 @@ export function DynamicPage() {
   const [canEdit, setCanEdit] = useState(false);
   const [canAdd, setCanAdd] = useState(false);
   const [fetchingFollowers, setFetchingFollowers] = useState<string | null>(null);
+  const [ocrFollowers, setOcrFollowers] = useState<string | null>(null);
+
+  const readFileAsDataUrl = (file: File): Promise<string> =>
+    new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(String(reader.result || ''));
+      reader.onerror = () => reject(reader.error);
+      reader.readAsDataURL(file);
+    });
+
+  const extractFollowersFromImage = async (item: PageItem, file: File) => {
+    setOcrFollowers(item.id);
+    try {
+      const dataUrl = await readFileAsDataUrl(file);
+
+      const { data, error } = await supabase.functions.invoke('extract-followers-from-image', {
+        body: { imageBase64: dataUrl },
+      });
+
+      if (error) {
+        toast.error('辨識失敗: ' + error.message);
+        return;
+      }
+
+      if (!data?.success || !data?.followersCount) {
+        toast.error(data?.error || '無法從截圖辨識追蹤者數量');
+        return;
+      }
+
+      const raw = String(data.followersCount).trim();
+      if (!/^\d+$/.test(raw)) {
+        toast.error('辨識結果格式不正確');
+        return;
+      }
+
+      const { error: updateError } = await supabase
+        .from('page_items')
+        .update({ followers_count: raw })
+        .eq('id', item.id);
+
+      if (updateError) throw updateError;
+
+      setItems(prev => prev.map(i => (i.id === item.id ? { ...i, followers_count: raw } : i)));
+      toast.success(`已從截圖更新追蹤者: ${parseInt(raw, 10).toLocaleString('en-US')}`);
+    } catch (e: any) {
+      toast.error('辨識失敗: ' + (e?.message || '未知錯誤'));
+    } finally {
+      setOcrFollowers(null);
+    }
+  };
 
   useEffect(() => {
     if (slug) {
@@ -614,20 +664,51 @@ export function DynamicPage() {
                   <div className="flex gap-1 shrink-0">
                     {/* Fetch Instagram followers button */}
                     {isInstagramUrl(item.url) && (
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => fetchInstagramFollowers(item)}
-                        disabled={fetchingFollowers === item.id}
-                        className="opacity-0 group-hover:opacity-100"
-                        title="抓取追蹤者數量"
-                      >
-                        {fetchingFollowers === item.id ? (
-                          <Loader2 className="w-4 h-4 animate-spin" />
-                        ) : (
-                          <RefreshCw className="w-4 h-4" />
-                        )}
-                      </Button>
+                      <>
+                        <input
+                          id={`ig-ocr-${item.id}`}
+                          type="file"
+                          accept="image/*"
+                          className="hidden"
+                          onChange={(e) => {
+                            const f = e.target.files?.[0];
+                            if (f) extractFollowersFromImage(item, f);
+                            // allow re-selecting same file
+                            e.currentTarget.value = '';
+                          }}
+                        />
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => {
+                            const el = document.getElementById(`ig-ocr-${item.id}`) as HTMLInputElement | null;
+                            el?.click();
+                          }}
+                          disabled={ocrFollowers === item.id}
+                          className="opacity-0 group-hover:opacity-100"
+                          title="用截圖辨識追蹤者數量"
+                        >
+                          {ocrFollowers === item.id ? (
+                            <Loader2 className="w-4 h-4 animate-spin" />
+                          ) : (
+                            <ImageIcon className="w-4 h-4" />
+                          )}
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => fetchInstagramFollowers(item)}
+                          disabled={fetchingFollowers === item.id}
+                          className="opacity-0 group-hover:opacity-100"
+                          title="抓取追蹤者數量"
+                        >
+                          {fetchingFollowers === item.id ? (
+                            <Loader2 className="w-4 h-4 animate-spin" />
+                          ) : (
+                            <RefreshCw className="w-4 h-4" />
+                          )}
+                        </Button>
+                      </>
                     )}
                     <Button
                       variant="ghost"
