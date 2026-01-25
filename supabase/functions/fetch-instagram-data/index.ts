@@ -33,7 +33,21 @@ Deno.serve(async (req) => {
       formattedUrl = `https://${formattedUrl}`;
     }
 
-    console.log('Scraping Instagram URL:', formattedUrl);
+    // Instagram is commonly blocked from scraping (TOS/technical). Avoid returning non-2xx
+    // so the frontend doesn't treat it as a hard error.
+    if (formattedUrl.includes('instagram.com') || formattedUrl.includes('instagr.am')) {
+      return new Response(
+        JSON.stringify({
+          success: false,
+          error: 'Instagram 不支援自動抓取（已被封鎖/條款限制），請改用官方 API 或手動維護數據。',
+          status: 403,
+          blocklisted: true,
+        }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    console.log('Scraping URL:', formattedUrl);
 
     // Use Firecrawl to scrape the Instagram page
     const response = await fetch('https://api.firecrawl.dev/v1/scrape', {
@@ -55,8 +69,12 @@ Deno.serve(async (req) => {
     if (!response.ok) {
       console.error('Firecrawl API error:', data);
       return new Response(
-        JSON.stringify({ success: false, error: data.error || `Request failed with status ${response.status}` }),
-        { status: response.status, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        JSON.stringify({
+          success: false,
+          error: data.error || `Request failed with status ${response.status}`,
+          status: response.status,
+        }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
@@ -104,37 +122,6 @@ Deno.serve(async (req) => {
       }
     }
 
-    // If we found data and have an itemId, update the database
-    if (itemId && (followersCount || avatarUrl)) {
-      const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
-      const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
-      
-      const updateData: Record<string, string> = {};
-      if (followersCount) {
-        updateData.followers_count = followersCount;
-      }
-      
-      const updateResponse = await fetch(
-        `${supabaseUrl}/rest/v1/page_items?id=eq.${itemId}`,
-        {
-          method: 'PATCH',
-          headers: {
-            'Authorization': `Bearer ${supabaseKey}`,
-            'apikey': supabaseKey,
-            'Content-Type': 'application/json',
-            'Prefer': 'return=minimal',
-          },
-          body: JSON.stringify(updateData),
-        }
-      );
-
-      if (!updateResponse.ok) {
-        console.error('Failed to update database');
-      } else {
-        console.log('Database updated successfully');
-      }
-    }
-
     return new Response(
       JSON.stringify({
         success: true,
@@ -147,9 +134,10 @@ Deno.serve(async (req) => {
   } catch (error) {
     console.error('Error fetching Instagram data:', error);
     const errorMessage = error instanceof Error ? error.message : 'Failed to fetch Instagram data';
+    // Always return 200 so the client can show a friendly message instead of crashing on non-2xx.
     return new Response(
-      JSON.stringify({ success: false, error: errorMessage }),
-      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      JSON.stringify({ success: false, error: errorMessage, status: 500 }),
+      { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
   }
 });
