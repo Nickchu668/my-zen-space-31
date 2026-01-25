@@ -10,6 +10,7 @@ interface Profile {
   email: string;
   display_name: string | null;
   avatar_url: string | null;
+  is_approved: boolean;
 }
 
 interface AuthContextType {
@@ -18,6 +19,7 @@ interface AuthContextType {
   profile: Profile | null;
   role: AppRole | null;
   loading: boolean;
+  isApproved: boolean;
   signIn: (email: string, password: string) => Promise<{ error: Error | null }>;
   signUp: (email: string, password: string, displayName?: string) => Promise<{ error: Error | null }>;
   signOut: () => Promise<void>;
@@ -35,14 +37,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // Set up auth state listener FIRST
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
         setSession(session);
         setUser(session?.user ?? null);
         
         if (session?.user) {
-          // Defer data fetching to avoid blocking auth state
           setTimeout(async () => {
             await fetchUserData(session.user.id);
           }, 0);
@@ -54,7 +54,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
     );
 
-    // THEN get initial session
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session);
       setUser(session?.user ?? null);
@@ -71,7 +70,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const fetchUserData = async (userId: string) => {
     try {
-      // Fetch profile
       const { data: profileData } = await supabase
         .from('profiles')
         .select('*')
@@ -80,7 +78,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       
       setProfile(profileData);
 
-      // Fetch role
       const { data: roleData } = await supabase
         .from('user_roles')
         .select('role')
@@ -123,6 +120,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const isAdmin = role === 'admin';
   const isPremium = role === 'admin' || role === 'premium';
+  const isApproved = profile?.is_approved ?? false;
 
   return (
     <AuthContext.Provider
@@ -132,6 +130,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         profile,
         role,
         loading,
+        isApproved,
         signIn,
         signUp,
         signOut,
