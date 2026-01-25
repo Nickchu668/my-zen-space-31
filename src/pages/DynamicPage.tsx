@@ -59,7 +59,7 @@ export function DynamicPage() {
   }, [page, user, isAdmin]);
 
   const checkPermissions = async (pageData: PageData, userId: string) => {
-    // Admin can always edit
+    // Admin can always edit and add
     if (isAdmin) {
       setCanEdit(true);
       setCanAdd(true);
@@ -77,8 +77,15 @@ export function DynamicPage() {
     const hasEditPermission = data?.can_edit || false;
     setCanEdit(hasEditPermission);
     
-    // Can add if has edit permission OR page allows member submissions
-    setCanAdd(hasEditPermission || pageData.allow_member_submit);
+    // Members can ONLY add on pages with allow_member_submit = true
+    // Premium users with edit permission can add anywhere they have access
+    // Regular members without edit permission can only add on member-submit pages
+    if (hasEditPermission) {
+      setCanAdd(true);
+    } else {
+      // Only allow adding on pages that explicitly allow member submissions
+      setCanAdd(pageData.allow_member_submit === true);
+    }
   };
 
   const fetchPage = async (pageSlug: string) => {
