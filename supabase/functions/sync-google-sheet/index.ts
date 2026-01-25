@@ -16,26 +16,22 @@ interface SheetRow {
 }
 
 function parseCSV(csvText: string): SheetRow[] {
-  const lines = csvText.split('\n').filter(line => line.trim());
-  if (lines.length < 2) return [];
+  // Parse CSV properly handling multi-line quoted fields
+  const records = parseCSVRecords(csvText);
+  if (records.length < 2) return [];
 
-  // Parse header row
-  const headers = parseCSVLine(lines[0]);
+  // First row is headers
+  const headers = records[0];
   console.log("Detected headers:", headers);
 
-  // Parse data rows
-  const rows: SheetRow[] = [];
-  
   // Find title and content column indices
   const headerLower = headers.map(h => h.toLowerCase().trim());
   
-  // Priority for title: exact match > contains match
   let titleIdx = headerLower.findIndex(h => h === 'title' || h === '標題');
   if (titleIdx === -1) {
     titleIdx = headerLower.findIndex(h => h.includes('title') || h.includes('標題'));
   }
   
-  // Priority for content: exact match > contains match
   let contentIdx = headerLower.findIndex(h => h === 'content' || h === '內容');
   if (contentIdx === -1) {
     contentIdx = headerLower.findIndex(h => 
@@ -43,24 +39,26 @@ function parseCSV(csvText: string): SheetRow[] {
     );
   }
 
-  // Fallback to first two columns if not found
   if (titleIdx === -1 && headers.length > 0) titleIdx = 0;
   if (contentIdx === -1 && headers.length > 1) contentIdx = 1;
   
   console.log("Title column index:", titleIdx, "Content column index:", contentIdx);
 
-  for (let i = 1; i < lines.length; i++) {
-    const values = parseCSVLine(lines[i]);
+  const rows: SheetRow[] = [];
+  
+  for (let i = 1; i < records.length; i++) {
+    const values = records[i];
     
     let title = titleIdx >= 0 && titleIdx < values.length ? values[titleIdx].trim() : '';
     let content = contentIdx >= 0 && contentIdx < values.length ? values[contentIdx].trim() : '';
 
     // If title is empty but content exists, use content as title (truncated)
     if (!title && content) {
-      title = content.length > 100 ? content.substring(0, 100) + '...' : content;
+      // Get first line of content as title
+      const firstLine = content.split('\n')[0].trim();
+      title = firstLine.length > 100 ? firstLine.substring(0, 100) + '...' : firstLine;
     }
 
-    // Skip empty rows
     if (title) {
       rows.push({ title, content });
     }
@@ -69,31 +67,65 @@ function parseCSV(csvText: string): SheetRow[] {
   return rows;
 }
 
-function parseCSVLine(line: string): string[] {
-  const result: string[] = [];
-  let current = '';
+// Properly parse CSV with multi-line quoted fields
+function parseCSVRecords(csvText: string): string[][] {
+  const records: string[][] = [];
+  let currentRecord: string[] = [];
+  let currentField = '';
   let inQuotes = false;
-
-  for (let i = 0; i < line.length; i++) {
-    const char = line[i];
+  
+  for (let i = 0; i < csvText.length; i++) {
+    const char = csvText[i];
+    const nextChar = csvText[i + 1];
     
-    if (char === '"') {
-      if (inQuotes && line[i + 1] === '"') {
-        current += '"';
-        i++;
+    if (inQuotes) {
+      if (char === '"') {
+        if (nextChar === '"') {
+          // Escaped quote
+          currentField += '"';
+          i++;
+        } else {
+          // End of quoted field
+          inQuotes = false;
+        }
       } else {
-        inQuotes = !inQuotes;
+        // Any character inside quotes (including newlines)
+        currentField += char;
       }
-    } else if (char === ',' && !inQuotes) {
-      result.push(current.trim());
-      current = '';
     } else {
-      current += char;
+      if (char === '"') {
+        // Start of quoted field
+        inQuotes = true;
+      } else if (char === ',') {
+        // Field separator
+        currentRecord.push(currentField);
+        currentField = '';
+      } else if (char === '\r' && nextChar === '\n') {
+        // Windows line ending - skip \r
+        continue;
+      } else if (char === '\n' || char === '\r') {
+        // End of record
+        currentRecord.push(currentField);
+        if (currentRecord.some(f => f.trim())) {
+          records.push(currentRecord);
+        }
+        currentRecord = [];
+        currentField = '';
+      } else {
+        currentField += char;
+      }
     }
   }
   
-  result.push(current.trim());
-  return result;
+  // Don't forget the last field and record
+  if (currentField || currentRecord.length > 0) {
+    currentRecord.push(currentField);
+    if (currentRecord.some(f => f.trim())) {
+      records.push(currentRecord);
+    }
+  }
+  
+  return records;
 }
 
 serve(async (req) => {
