@@ -96,6 +96,7 @@ export type Database = {
       }
       pages: {
         Row: {
+          allow_member_submit: boolean | null
           category: string | null
           content: string | null
           created_at: string
@@ -112,6 +113,7 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          allow_member_submit?: boolean | null
           category?: string | null
           content?: string | null
           created_at?: string
@@ -128,6 +130,7 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          allow_member_submit?: boolean | null
           category?: string | null
           content?: string | null
           created_at?: string
