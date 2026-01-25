@@ -9,6 +9,7 @@ import { useToast } from '@/hooks/use-toast';
 import { Badge } from '@/components/ui/badge';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { RichTextEditor } from '@/components/editor/RichTextEditor';
 import { 
   Settings, 
   Users, 
@@ -22,7 +23,8 @@ import {
   User,
   CheckCircle,
   XCircle,
-  Key
+  Key,
+  PenLine
 } from 'lucide-react';
 import {
   Table,
@@ -62,6 +64,7 @@ interface Page {
   slug: string;
   icon: string;
   description: string | null;
+  content: string | null;
   is_active: boolean;
   min_role: string;
   sort_order: number;
@@ -236,6 +239,7 @@ export function AdminPage() {
         slug: page.slug,
         icon: page.icon,
         description: page.description,
+        content: page.content,
         is_active: page.is_active,
         min_role: page.min_role as 'admin' | 'premium' | 'member',
       })
@@ -619,27 +623,32 @@ export function AdminPage() {
 
         {/* Edit Page Dialog */}
         <Dialog open={!!editingPage} onOpenChange={() => setEditingPage(null)}>
-          <DialogContent>
+          <DialogContent className="sm:max-w-4xl max-h-[90vh] overflow-y-auto">
             <DialogHeader>
-              <DialogTitle>編輯頁面</DialogTitle>
+              <DialogTitle className="flex items-center gap-2">
+                <PenLine className="w-5 h-5" />
+                編輯頁面
+              </DialogTitle>
             </DialogHeader>
             {editingPage && (
               <div className="space-y-4 py-4">
-                <div className="space-y-2">
-                  <Label>頁面標題</Label>
-                  <Input
-                    value={editingPage.title}
-                    onChange={(e) => setEditingPage({ ...editingPage, title: e.target.value })}
-                    className="input-fun"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label>URL 路徑</Label>
-                  <Input
-                    value={editingPage.slug}
-                    onChange={(e) => setEditingPage({ ...editingPage, slug: e.target.value })}
-                    className="input-fun"
-                  />
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label>頁面標題</Label>
+                    <Input
+                      value={editingPage.title}
+                      onChange={(e) => setEditingPage({ ...editingPage, title: e.target.value })}
+                      className="input-fun"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>URL 路徑</Label>
+                    <Input
+                      value={editingPage.slug}
+                      onChange={(e) => setEditingPage({ ...editingPage, slug: e.target.value })}
+                      className="input-fun"
+                    />
+                  </div>
                 </div>
                 <div className="space-y-2">
                   <Label>描述</Label>
@@ -649,7 +658,15 @@ export function AdminPage() {
                     className="input-fun"
                   />
                 </div>
-                <div className="flex justify-end gap-2">
+                <div className="space-y-2">
+                  <Label>頁面內容</Label>
+                  <RichTextEditor
+                    content={editingPage.content || ''}
+                    onChange={(content) => setEditingPage({ ...editingPage, content })}
+                    placeholder="在此編輯頁面內容..."
+                  />
+                </div>
+                <div className="flex justify-end gap-2 pt-4">
                   <Button variant="ghost" onClick={() => setEditingPage(null)}>
                     取消
                   </Button>

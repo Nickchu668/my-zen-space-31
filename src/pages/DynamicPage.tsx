@@ -9,7 +9,7 @@ interface PageData {
   slug: string;
   icon: string;
   description: string | null;
-  content: any;
+  content: string | null;
 }
 
 export function DynamicPage() {
@@ -67,6 +67,15 @@ export function DynamicPage() {
     );
   }
 
+  // Get content as string - handle both string and JSON formats
+  const getContentHtml = (): string | null => {
+    if (!page.content) return null;
+    if (typeof page.content === 'string') return page.content;
+    return null;
+  };
+
+  const contentHtml = getContentHtml();
+
   return (
     <div className="page-container">
       <div className="max-w-6xl mx-auto">
@@ -84,20 +93,17 @@ export function DynamicPage() {
         </div>
 
         {/* Content */}
-        <div className="prose prose-gray dark:prose-invert max-w-none">
-          {Array.isArray(page.content) && page.content.length > 0 ? (
-            page.content.map((block: any, index: number) => (
-              <div key={index} className="mb-4">
-                {block.type === 'text' && <p>{block.content}</p>}
-                {block.type === 'heading' && <h2>{block.content}</h2>}
-              </div>
-            ))
-          ) : (
-            <div className="text-center py-12 bg-muted/30 rounded-xl">
-              <p className="text-muted-foreground">此頁面尚無內容</p>
-            </div>
-          )}
-        </div>
+        {contentHtml ? (
+          <div 
+            className="prose prose-gray dark:prose-invert max-w-none bg-card rounded-xl p-6 border border-border"
+            dangerouslySetInnerHTML={{ __html: contentHtml }}
+          />
+        ) : (
+          <div className="text-center py-12 bg-muted/30 rounded-xl">
+            <FileText className="w-12 h-12 mx-auto mb-4 text-muted-foreground opacity-50" />
+            <p className="text-muted-foreground">此頁面尚無內容</p>
+          </div>
+        )}
       </div>
     </div>
   );
