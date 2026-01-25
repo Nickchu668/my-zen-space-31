@@ -49,7 +49,6 @@ export type Database = {
       }
       pages: {
         Row: {
-          category: string | null
           content: string | null
           created_at: string
           created_by: string | null
@@ -57,7 +56,6 @@ export type Database = {
           icon: string | null
           id: string
           is_active: boolean | null
-          link: string | null
           min_role: Database["public"]["Enums"]["app_role"] | null
           slug: string
           sort_order: number | null
@@ -65,7 +63,6 @@ export type Database = {
           updated_at: string
         }
         Insert: {
-          category?: string | null
           content?: string | null
           created_at?: string
           created_by?: string | null
@@ -73,7 +70,6 @@ export type Database = {
           icon?: string | null
           id?: string
           is_active?: boolean | null
-          link?: string | null
           min_role?: Database["public"]["Enums"]["app_role"] | null
           slug: string
           sort_order?: number | null
@@ -81,7 +77,6 @@ export type Database = {
           updated_at?: string
         }
         Update: {
-          category?: string | null
           content?: string | null
           created_at?: string
           created_by?: string | null
@@ -89,7 +84,6 @@ export type Database = {
           icon?: string | null
           id?: string
           is_active?: boolean | null
-          link?: string | null
           min_role?: Database["public"]["Enums"]["app_role"] | null
           slug?: string
           sort_order?: number | null

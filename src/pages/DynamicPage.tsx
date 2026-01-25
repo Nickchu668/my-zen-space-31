@@ -1,9 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
-import { FileText, Loader2, ExternalLink, Tag } from 'lucide-react';
-import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
+import { FileText, Loader2 } from 'lucide-react';
 
 interface PageData {
   id: string;
@@ -12,8 +10,6 @@ interface PageData {
   icon: string;
   description: string | null;
   content: string | null;
-  link: string | null;
-  category: string | null;
 }
 
 export function DynamicPage() {
@@ -87,35 +83,16 @@ export function DynamicPage() {
     <div className="page-container">
       <div className="max-w-6xl mx-auto">
         {/* Header */}
-        <div className="flex items-center gap-4 mb-6">
+        <div className="flex items-center gap-4 mb-8">
           <div className="w-14 h-14 rounded-2xl bg-accent flex items-center justify-center">
             <FileText className="w-7 h-7 text-accent-foreground" />
           </div>
-          <div className="flex-1">
-            <div className="flex items-center gap-3 mb-1">
-              <h1 className="section-title">{page.title}</h1>
-              {page.category && (
-                <Badge variant="secondary" className="flex items-center gap-1">
-                  <Tag className="w-3 h-3" />
-                  {page.category}
-                </Badge>
-              )}
-            </div>
+          <div>
+            <h1 className="section-title mb-1">{page.title}</h1>
             {page.description && (
               <p className="text-muted-foreground">{page.description}</p>
             )}
           </div>
-          {page.link && (
-            <Button
-              variant="outline"
-              size="sm"
-              className="gap-2"
-              onClick={() => window.open(page.link!, '_blank')}
-            >
-              <ExternalLink className="w-4 h-4" />
-              開啟連結
-            </Button>
-          )}
         </div>
 
         {/* Content */}

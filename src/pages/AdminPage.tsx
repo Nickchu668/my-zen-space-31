@@ -65,8 +65,6 @@ interface Page {
   icon: string;
   description: string | null;
   content: string | null;
-  link: string | null;
-  category: string | null;
   is_active: boolean;
   min_role: string;
   sort_order: number;
@@ -87,7 +85,7 @@ export function AdminPage() {
   const [editingPage, setEditingPage] = useState<Page | null>(null);
   const [isCreatingPage, setIsCreatingPage] = useState(false);
   const [selectedUser, setSelectedUser] = useState<UserWithRole | null>(null);
-  const [newPage, setNewPage] = useState({ title: '', slug: '', icon: 'file-text', description: '', link: '', category: '一般' });
+  const [newPage, setNewPage] = useState({ title: '', slug: '', icon: 'file-text', description: '' });
   const { toast } = useToast();
 
   useEffect(() => {
@@ -225,8 +223,6 @@ export function AdminPage() {
       slug: newPage.slug,
       icon: newPage.icon,
       description: newPage.description,
-      link: newPage.link || null,
-      category: newPage.category || '一般',
       sort_order: pages.length,
     });
 
@@ -234,7 +230,7 @@ export function AdminPage() {
       toast({ title: '創建失敗', description: error.message, variant: 'destructive' });
     } else {
       toast({ title: '頁面已創建' });
-      setNewPage({ title: '', slug: '', icon: 'file-text', description: '', link: '', category: '一般' });
+      setNewPage({ title: '', slug: '', icon: 'file-text', description: '' });
       setIsCreatingPage(false);
       fetchPages();
     }
@@ -249,8 +245,6 @@ export function AdminPage() {
         icon: page.icon,
         description: page.description,
         content: page.content,
-        link: page.link,
-        category: page.category,
         is_active: page.is_active,
         min_role: page.min_role as 'admin' | 'premium' | 'member',
       })
@@ -545,25 +539,23 @@ export function AdminPage() {
                       <DialogTitle>新增頁面</DialogTitle>
                     </DialogHeader>
                     <div className="space-y-4 py-4">
-                      <div className="grid grid-cols-2 gap-4">
-                        <div className="space-y-2">
-                          <Label>頁面標題</Label>
-                          <Input
-                            value={newPage.title}
-                            onChange={(e) => setNewPage({ ...newPage, title: e.target.value })}
-                            placeholder="例：我的資料"
-                            className="input-fun"
-                          />
-                        </div>
-                        <div className="space-y-2">
-                          <Label>URL 路徑</Label>
-                          <Input
-                            value={newPage.slug}
-                            onChange={(e) => setNewPage({ ...newPage, slug: e.target.value })}
-                            placeholder="例：my-data"
-                            className="input-fun"
-                          />
-                        </div>
+                      <div className="space-y-2">
+                        <Label>頁面標題</Label>
+                        <Input
+                          value={newPage.title}
+                          onChange={(e) => setNewPage({ ...newPage, title: e.target.value })}
+                          placeholder="例：我的資料"
+                          className="input-fun"
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label>URL 路徑</Label>
+                        <Input
+                          value={newPage.slug}
+                          onChange={(e) => setNewPage({ ...newPage, slug: e.target.value })}
+                          placeholder="例：my-data"
+                          className="input-fun"
+                        />
                       </div>
                       <div className="space-y-2">
                         <Label>描述</Label>
@@ -573,26 +565,6 @@ export function AdminPage() {
                           placeholder="頁面描述"
                           className="input-fun"
                         />
-                      </div>
-                      <div className="grid grid-cols-2 gap-4">
-                        <div className="space-y-2">
-                          <Label>連結</Label>
-                          <Input
-                            value={newPage.link}
-                            onChange={(e) => setNewPage({ ...newPage, link: e.target.value })}
-                            placeholder="https://example.com"
-                            className="input-fun"
-                          />
-                        </div>
-                        <div className="space-y-2">
-                          <Label>類別</Label>
-                          <Input
-                            value={newPage.category}
-                            onChange={(e) => setNewPage({ ...newPage, category: e.target.value })}
-                            placeholder="一般"
-                            className="input-fun"
-                          />
-                        </div>
                       </div>
                       <div className="flex justify-end gap-2">
                         <Button variant="ghost" onClick={() => setIsCreatingPage(false)}>
@@ -690,26 +662,6 @@ export function AdminPage() {
                     onChange={(e) => setEditingPage({ ...editingPage, description: e.target.value })}
                     className="input-fun"
                   />
-                </div>
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label>連結</Label>
-                    <Input
-                      value={editingPage.link || ''}
-                      onChange={(e) => setEditingPage({ ...editingPage, link: e.target.value })}
-                      placeholder="https://example.com"
-                      className="input-fun"
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label>類別</Label>
-                    <Input
-                      value={editingPage.category || '一般'}
-                      onChange={(e) => setEditingPage({ ...editingPage, category: e.target.value })}
-                      placeholder="一般"
-                      className="input-fun"
-                    />
-                  </div>
                 </div>
                 <div className="space-y-2">
                   <Label>頁面內容</Label>
