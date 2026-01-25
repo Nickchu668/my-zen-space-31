@@ -11,6 +11,7 @@ import { ResourcesPage } from "@/pages/ResourcesPage";
 import { AIWorkPage } from "@/pages/AIWorkPage";
 import { NotebookPage } from "@/pages/NotebookPage";
 import { AdminPage } from "@/pages/AdminPage";
+import { DynamicPage } from "@/pages/DynamicPage";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -71,6 +72,15 @@ const App = () => (
               element={
                 <ProtectedRoute requiredRole="admin">
                   <AppLayout><AdminPage /></AppLayout>
+                </ProtectedRoute>
+              }
+            />
+            {/* Dynamic pages - catches any /app/:slug not matched above */}
+            <Route
+              path="/app/:slug"
+              element={
+                <ProtectedRoute>
+                  <AppLayout><DynamicPage /></AppLayout>
                 </ProtectedRoute>
               }
             />
