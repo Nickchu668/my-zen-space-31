@@ -76,11 +76,10 @@ export function NoteRow({
 
       if (error) {
         console.error('Failed to update Google Sheet:', error);
-        toast({
-          title: '無法更新 Google Sheet',
-          description: error.message,
-          variant: 'destructive',
-        });
+        // Don't show error toast - just log it, note will still be deleted
+      } else if (data?.message?.includes('找不到')) {
+        // Note wasn't from Google Sheet, no need to update
+        console.log('Note not found in Google Sheet (may be local only)');
       } else {
         toast({
           title: '已同步至 Google Sheet',
