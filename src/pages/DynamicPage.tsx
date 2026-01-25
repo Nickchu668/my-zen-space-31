@@ -64,6 +64,10 @@ const formatFollowers = (count: string | null): string => {
   // Try to parse as raw number
   const num = parseInt(count.replace(/,/g, ''), 10);
   if (isNaN(num)) return count;
+
+   // For smaller accounts, show the exact number with separators for clarity.
+   if (num < 10000) return num.toLocaleString('en-US');
+
   if (num >= 1000000) return (num / 1000000).toFixed(1) + 'M';
   if (num >= 1000) return (num / 1000).toFixed(1) + 'K';
   return num.toString();
@@ -266,19 +270,35 @@ export function DynamicPage() {
         return;
       }
 
+      const raw = String(data.followersCount).trim();
+      const looksLikeNumber = /^\d[\d,]*$/.test(raw);
+      const looksLikeEstimate = /^([\d.,]+)\s*([KkMm])$/.test(raw);
+
+      // Avoid overwriting DB with an estimated/stale value like "11.1K".
+      if (!looksLikeNumber) {
+        if (looksLikeEstimate) {
+          toast.error('抓取結果為估算值（可能不準），已避免自動覆蓋。請改用手動輸入或稍後再試。');
+        } else {
+          toast.error('抓取到的追蹤者格式不正確，已避免自動覆蓋。');
+        }
+        return;
+      }
+
+      const normalized = raw.replace(/,/g, '');
+
       // Persist to DB (respects RLS; button only appears for editors/owners)
       const { error: updateError } = await supabase
         .from('page_items')
-        .update({ followers_count: data.followersCount })
+        .update({ followers_count: normalized })
         .eq('id', item.id);
 
       if (updateError) throw updateError;
 
       // Update local state
       setItems(prev => prev.map(i =>
-        i.id === item.id ? { ...i, followers_count: data.followersCount } : i
+        i.id === item.id ? { ...i, followers_count: normalized } : i
       ));
-      toast.success(`已獲取追蹤者數量: ${data.followersCount}`);
+      toast.success(`已獲取追蹤者數量: ${normalized}`);
     } catch (error: any) {
       console.error('Error fetching Instagram data:', error);
       toast.error('抓取失敗: ' + (error.message || '未知錯誤'));

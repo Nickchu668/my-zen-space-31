@@ -12,6 +12,27 @@ function getInstagramUsername(url: string): string | null {
   return null;
 }
 
+// Best-effort extraction of follower count from Instagram profile HTML.
+// Returns a raw integer if found.
+function extractFollowersFromProfileHtml(html: string): number | null {
+  const patterns: RegExp[] = [
+    // Common embedded JSON pattern
+    /"edge_followed_by"\s*:\s*\{\s*"count"\s*:\s*(\d+)/,
+    // Alternative JSON keys that occasionally show up
+    /"follower_count"\s*:\s*(\d+)/,
+    /"followers"\s*:\s*\{\s*"count"\s*:\s*(\d+)/,
+  ];
+
+  for (const re of patterns) {
+    const m = html.match(re);
+    if (m?.[1]) {
+      const n = Number(m[1]);
+      if (Number.isFinite(n) && n >= 0) return n;
+    }
+  }
+  return null;
+}
+
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
@@ -37,7 +58,39 @@ Deno.serve(async (req) => {
 
     console.log('Fetching Instagram data for username:', username);
 
-    // Method 1: Try using Lovable AI with web search capability
+    // Method 1: Fetch public profile HTML and parse follower count.
+    // This avoids stale/estimated values from search results.
+    try {
+      const profileUrl = `https://www.instagram.com/${username}/`;
+      const profileResponse = await fetch(profileUrl, {
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+          'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+          'Accept-Language': 'en-US,en;q=0.9',
+        },
+      });
+
+      if (profileResponse.ok) {
+        const html = await profileResponse.text();
+        const followers = extractFollowersFromProfileHtml(html);
+        if (followers !== null) {
+          console.log('Found followers via profile HTML:', followers);
+          return new Response(
+            JSON.stringify({
+              success: true,
+              followersCount: followers.toString(),
+              method: 'profile-html',
+              message: '成功透過公開頁面解析獲取資料',
+            }),
+            { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+      }
+    } catch (htmlError) {
+      console.log('Profile HTML attempt failed:', htmlError);
+    }
+
+    // Method 2: Try using Lovable AI with web search capability (may be stale/estimated)
     const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY');
     if (LOVABLE_API_KEY) {
       try {
@@ -99,7 +152,7 @@ Deno.serve(async (req) => {
       }
     }
 
-    // Method 2: Try public Instagram API endpoints (may be blocked but worth trying)
+    // Method 3: Try public Instagram API endpoints (may be blocked but worth trying)
     try {
       // Try the public web profile info endpoint
       const webResponse = await fetch(`https://www.instagram.com/api/v1/users/web_profile_info/?username=${username}`, {
@@ -130,7 +183,7 @@ Deno.serve(async (req) => {
       console.log('Web API attempt failed:', webError);
     }
 
-    // Method 3: Try i.instagram.com API
+    // Method 4: Try i.instagram.com API
     try {
       const mobileResponse = await fetch(`https://i.instagram.com/api/v1/users/web_profile_info/?username=${username}`, {
         headers: {
@@ -165,7 +218,7 @@ Deno.serve(async (req) => {
       JSON.stringify({
         success: false,
         error: '所有方法皆無法獲取 Instagram 資料。建議手動輸入追蹤者數量，或使用官方 Instagram Graph API。',
-        triedMethods: ['ai-search', 'web-api', 'mobile-api'],
+        triedMethods: ['profile-html', 'ai-search', 'web-api', 'mobile-api'],
       }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
