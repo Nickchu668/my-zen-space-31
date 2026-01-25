@@ -69,6 +69,9 @@ serve(async (req) => {
     }
 
     // Call the Google Apps Script
+    console.log("Calling Apps Script with:", { action, title, value: value || "刪除" });
+    console.log("Apps Script URL:", appsScriptUrl.substring(0, 50) + "...");
+    
     const response = await fetch(appsScriptUrl, {
       method: "POST",
       headers: {
@@ -79,15 +82,20 @@ serve(async (req) => {
         title,
         value: value || "刪除",
       }),
+      redirect: "follow", // Important: Apps Script redirects after execution
     });
 
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error("Apps Script error:", errorText);
-      throw new Error(`Apps Script returned ${response.status}`);
-    }
+    console.log("Apps Script response status:", response.status);
+    const responseText = await response.text();
+    console.log("Apps Script response:", responseText);
 
-    const result = await response.json();
+    let result;
+    try {
+      result = JSON.parse(responseText);
+    } catch {
+      console.error("Failed to parse response as JSON:", responseText);
+      throw new Error("Invalid response from Apps Script");
+    }
 
     return new Response(
       JSON.stringify({
