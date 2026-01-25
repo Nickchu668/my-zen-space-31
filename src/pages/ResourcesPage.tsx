@@ -21,13 +21,16 @@ interface Resource {
 }
 
 export function ResourcesPage() {
-  const { user } = useAuth();
+  const { user, isAdmin, isPremium } = useAuth();
   const [resources, setResources] = useState<Resource[]>([]);
   const [loading, setLoading] = useState(true);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingResource, setEditingResource] = useState<Resource | null>(null);
   const [formData, setFormData] = useState({ title: '', content: '', url: '', category: '一般' });
   const [saving, setSaving] = useState(false);
+
+  // Only admins and premium members can add/edit resources
+  const canEdit = isAdmin || isPremium;
 
   useEffect(() => {
     fetchResources();
@@ -157,58 +160,60 @@ export function ResourcesPage() {
               <p className="text-muted-foreground">收藏和管理你的重要資料</p>
             </div>
           </div>
-          <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-            <DialogTrigger asChild>
-              <Button onClick={openDialog} className="btn-fun gradient-primary text-primary-foreground gap-2">
-                <Plus className="w-4 h-4" />
-                新增資料
-              </Button>
-            </DialogTrigger>
-            <DialogContent className="sm:max-w-md">
-              <DialogHeader>
-                <DialogTitle>{editingResource ? '編輯資料' : '新增資料'}</DialogTitle>
-              </DialogHeader>
-              <div className="space-y-4 mt-4">
-                <div>
-                  <label className="text-sm font-medium mb-1 block">標題 *</label>
-                  <Input
-                    placeholder="輸入標題"
-                    value={formData.title}
-                    onChange={(e) => setFormData({ ...formData, title: e.target.value })}
-                  />
-                </div>
-                <div>
-                  <label className="text-sm font-medium mb-1 block">內容</label>
-                  <Textarea
-                    placeholder="輸入內容描述"
-                    value={formData.content}
-                    onChange={(e) => setFormData({ ...formData, content: e.target.value })}
-                    rows={3}
-                  />
-                </div>
-                <div>
-                  <label className="text-sm font-medium mb-1 block">連結</label>
-                  <Input
-                    placeholder="https://..."
-                    value={formData.url}
-                    onChange={(e) => setFormData({ ...formData, url: e.target.value })}
-                  />
-                </div>
-                <div>
-                  <label className="text-sm font-medium mb-1 block">類別</label>
-                  <Input
-                    placeholder="一般"
-                    value={formData.category}
-                    onChange={(e) => setFormData({ ...formData, category: e.target.value })}
-                  />
-                </div>
-                <Button onClick={handleSubmit} disabled={saving} className="w-full">
-                  {saving ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
-                  {editingResource ? '更新' : '新增'}
+          {canEdit && (
+            <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+              <DialogTrigger asChild>
+                <Button onClick={openDialog} className="btn-fun gradient-primary text-primary-foreground gap-2">
+                  <Plus className="w-4 h-4" />
+                  新增資料
                 </Button>
-              </div>
-            </DialogContent>
-          </Dialog>
+              </DialogTrigger>
+              <DialogContent className="sm:max-w-md">
+                <DialogHeader>
+                  <DialogTitle>{editingResource ? '編輯資料' : '新增資料'}</DialogTitle>
+                </DialogHeader>
+                <div className="space-y-4 mt-4">
+                  <div>
+                    <label className="text-sm font-medium mb-1 block">標題 *</label>
+                    <Input
+                      placeholder="輸入標題"
+                      value={formData.title}
+                      onChange={(e) => setFormData({ ...formData, title: e.target.value })}
+                    />
+                  </div>
+                  <div>
+                    <label className="text-sm font-medium mb-1 block">內容</label>
+                    <Textarea
+                      placeholder="輸入內容描述"
+                      value={formData.content}
+                      onChange={(e) => setFormData({ ...formData, content: e.target.value })}
+                      rows={3}
+                    />
+                  </div>
+                  <div>
+                    <label className="text-sm font-medium mb-1 block">連結</label>
+                    <Input
+                      placeholder="https://..."
+                      value={formData.url}
+                      onChange={(e) => setFormData({ ...formData, url: e.target.value })}
+                    />
+                  </div>
+                  <div>
+                    <label className="text-sm font-medium mb-1 block">類別</label>
+                    <Input
+                      placeholder="一般"
+                      value={formData.category}
+                      onChange={(e) => setFormData({ ...formData, category: e.target.value })}
+                    />
+                  </div>
+                  <Button onClick={handleSubmit} disabled={saving} className="w-full">
+                    {saving ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
+                    {editingResource ? '更新' : '新增'}
+                  </Button>
+                </div>
+              </DialogContent>
+            </Dialog>
+          )}
         </div>
 
         {/* Loading state */}
@@ -277,33 +282,35 @@ export function ResourcesPage() {
                   </a>
                 )}
 
-                {/* Actions */}
-                <div className="flex gap-1 shrink-0">
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    onClick={() => toggleStar(resource)}
-                    className={resource.is_starred ? 'text-yellow-500' : 'opacity-0 group-hover:opacity-100'}
-                  >
-                    <Star className={`w-4 h-4 ${resource.is_starred ? 'fill-current' : ''}`} />
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    onClick={() => handleEdit(resource)}
-                    className="opacity-0 group-hover:opacity-100"
-                  >
-                    <Pencil className="w-4 h-4" />
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    onClick={() => handleDelete(resource.id)}
-                    className="opacity-0 group-hover:opacity-100 text-destructive"
-                  >
-                    <Trash2 className="w-4 h-4" />
-                  </Button>
-                </div>
+                {/* Actions - only show for users with edit permission */}
+                {canEdit && (
+                  <div className="flex gap-1 shrink-0">
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => toggleStar(resource)}
+                      className={resource.is_starred ? 'text-yellow-500' : 'opacity-0 group-hover:opacity-100'}
+                    >
+                      <Star className={`w-4 h-4 ${resource.is_starred ? 'fill-current' : ''}`} />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => handleEdit(resource)}
+                      className="opacity-0 group-hover:opacity-100"
+                    >
+                      <Pencil className="w-4 h-4" />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => handleDelete(resource.id)}
+                      className="opacity-0 group-hover:opacity-100 text-destructive"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </Button>
+                  </div>
+                )}
               </div>
             ))}
           </div>
