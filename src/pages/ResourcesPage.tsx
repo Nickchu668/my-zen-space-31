@@ -2,22 +2,146 @@ import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { FolderOpen, Plus, ExternalLink, Link2, FileText, Star } from 'lucide-react';
+import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { FolderOpen, Plus, ExternalLink, Link2, FileText, Star, Pencil, Trash2, Loader2 } from 'lucide-react';
+import { useAuth } from '@/hooks/useAuth';
+import { toast } from 'sonner';
 
 interface Resource {
   id: string;
   title: string;
-  url?: string;
-  description?: string;
-  category?: string;
+  content: string | null;
+  url: string | null;
+  category: string | null;
+  is_starred: boolean | null;
+  user_id: string;
+  created_at: string;
 }
 
 export function ResourcesPage() {
-  const [resources] = useState<Resource[]>([
-    { id: '1', title: '設計資源庫', description: 'UI/UX 設計靈感和素材', category: '設計' },
-    { id: '2', title: '開發文檔', description: '技術文檔和教程', category: '開發' },
-    { id: '3', title: '學習資料', description: '線上課程和書籍', category: '學習' },
-  ]);
+  const { user } = useAuth();
+  const [resources, setResources] = useState<Resource[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [editingResource, setEditingResource] = useState<Resource | null>(null);
+  const [formData, setFormData] = useState({ title: '', content: '', url: '', category: '一般' });
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    fetchResources();
+  }, []);
+
+  const fetchResources = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('resources')
+        .select('*')
+        .order('is_starred', { ascending: false })
+        .order('created_at', { ascending: false });
+
+      if (error) throw error;
+      setResources(data || []);
+    } catch (error: any) {
+      toast.error('無法載入資料: ' + error.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleSubmit = async () => {
+    if (!formData.title.trim()) {
+      toast.error('請輸入標題');
+      return;
+    }
+
+    setSaving(true);
+    try {
+      if (editingResource) {
+        const { error } = await supabase
+          .from('resources')
+          .update({
+            title: formData.title.trim(),
+            content: formData.content.trim() || null,
+            url: formData.url.trim() || null,
+            category: formData.category.trim() || '一般',
+          })
+          .eq('id', editingResource.id);
+
+        if (error) throw error;
+        toast.success('資料已更新');
+      } else {
+        const { error } = await supabase
+          .from('resources')
+          .insert({
+            title: formData.title.trim(),
+            content: formData.content.trim() || null,
+            url: formData.url.trim() || null,
+            category: formData.category.trim() || '一般',
+            user_id: user?.id,
+          });
+
+        if (error) throw error;
+        toast.success('資料已新增');
+      }
+
+      setIsDialogOpen(false);
+      setEditingResource(null);
+      setFormData({ title: '', content: '', url: '', category: '一般' });
+      fetchResources();
+    } catch (error: any) {
+      toast.error('儲存失敗: ' + error.message);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleEdit = (resource: Resource) => {
+    setEditingResource(resource);
+    setFormData({
+      title: resource.title,
+      content: resource.content || '',
+      url: resource.url || '',
+      category: resource.category || '一般',
+    });
+    setIsDialogOpen(true);
+  };
+
+  const handleDelete = async (id: string) => {
+    if (!confirm('確定要刪除這項資料嗎？')) return;
+
+    try {
+      const { error } = await supabase.from('resources').delete().eq('id', id);
+      if (error) throw error;
+      toast.success('資料已刪除');
+      fetchResources();
+    } catch (error: any) {
+      toast.error('刪除失敗: ' + error.message);
+    }
+  };
+
+  const toggleStar = async (resource: Resource) => {
+    try {
+      const { error } = await supabase
+        .from('resources')
+        .update({ is_starred: !resource.is_starred })
+        .eq('id', resource.id);
+
+      if (error) throw error;
+      fetchResources();
+    } catch (error: any) {
+      toast.error('操作失敗: ' + error.message);
+    }
+  };
+
+  const openDialog = () => {
+    setEditingResource(null);
+    setFormData({ title: '', content: '', url: '', category: '一般' });
+    setIsDialogOpen(true);
+  };
+
+  const categories = [...new Set(resources.map(r => r.category || '一般'))];
 
   return (
     <div className="page-container">
@@ -33,74 +157,148 @@ export function ResourcesPage() {
               <p className="text-muted-foreground">收藏和管理你的重要資料</p>
             </div>
           </div>
-          <Button className="btn-fun gradient-primary text-primary-foreground gap-2">
-            <Plus className="w-4 h-4" />
-            新增資料
-          </Button>
+          <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+            <DialogTrigger asChild>
+              <Button onClick={openDialog} className="btn-fun gradient-primary text-primary-foreground gap-2">
+                <Plus className="w-4 h-4" />
+                新增資料
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="sm:max-w-md">
+              <DialogHeader>
+                <DialogTitle>{editingResource ? '編輯資料' : '新增資料'}</DialogTitle>
+              </DialogHeader>
+              <div className="space-y-4 mt-4">
+                <div>
+                  <label className="text-sm font-medium mb-1 block">標題 *</label>
+                  <Input
+                    placeholder="輸入標題"
+                    value={formData.title}
+                    onChange={(e) => setFormData({ ...formData, title: e.target.value })}
+                  />
+                </div>
+                <div>
+                  <label className="text-sm font-medium mb-1 block">內容</label>
+                  <Textarea
+                    placeholder="輸入內容描述"
+                    value={formData.content}
+                    onChange={(e) => setFormData({ ...formData, content: e.target.value })}
+                    rows={3}
+                  />
+                </div>
+                <div>
+                  <label className="text-sm font-medium mb-1 block">連結</label>
+                  <Input
+                    placeholder="https://..."
+                    value={formData.url}
+                    onChange={(e) => setFormData({ ...formData, url: e.target.value })}
+                  />
+                </div>
+                <div>
+                  <label className="text-sm font-medium mb-1 block">類別</label>
+                  <Input
+                    placeholder="一般"
+                    value={formData.category}
+                    onChange={(e) => setFormData({ ...formData, category: e.target.value })}
+                  />
+                </div>
+                <Button onClick={handleSubmit} disabled={saving} className="w-full">
+                  {saving ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
+                  {editingResource ? '更新' : '新增'}
+                </Button>
+              </div>
+            </DialogContent>
+          </Dialog>
         </div>
 
-        {/* Categories */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {resources.map((resource) => (
-            <Card key={resource.id} className="card-fun group cursor-pointer">
-              <CardHeader className="pb-3">
-                <div className="flex items-start justify-between">
-                  <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center group-hover:bg-primary/20 transition-colors">
-                    <FileText className="w-5 h-5 text-primary" />
+        {/* Loading state */}
+        {loading && (
+          <div className="flex items-center justify-center py-12">
+            <Loader2 className="w-8 h-8 animate-spin text-primary" />
+          </div>
+        )}
+
+        {/* Empty state */}
+        {!loading && resources.length === 0 && (
+          <div className="text-center py-12">
+            <div className="w-16 h-16 rounded-full bg-muted flex items-center justify-center mx-auto mb-4">
+              <FolderOpen className="w-8 h-8 text-muted-foreground" />
+            </div>
+            <h3 className="text-lg font-semibold mb-2">尚無資料</h3>
+            <p className="text-muted-foreground mb-4">點擊上方按鈕新增你的第一筆資料</p>
+          </div>
+        )}
+
+        {/* Resources grid */}
+        {!loading && resources.length > 0 && (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {resources.map((resource) => (
+              <Card key={resource.id} className="card-fun group">
+                <CardHeader className="pb-3">
+                  <div className="flex items-start justify-between">
+                    <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center group-hover:bg-primary/20 transition-colors">
+                      {resource.url ? (
+                        <Link2 className="w-5 h-5 text-primary" />
+                      ) : (
+                        <FileText className="w-5 h-5 text-primary" />
+                      )}
+                    </div>
+                    <div className="flex gap-1">
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => toggleStar(resource)}
+                        className={resource.is_starred ? 'text-yellow-500' : 'opacity-0 group-hover:opacity-100'}
+                      >
+                        <Star className={`w-4 h-4 ${resource.is_starred ? 'fill-current' : ''}`} />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => handleEdit(resource)}
+                        className="opacity-0 group-hover:opacity-100"
+                      >
+                        <Pencil className="w-4 h-4" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => handleDelete(resource.id)}
+                        className="opacity-0 group-hover:opacity-100 text-destructive"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </Button>
+                    </div>
                   </div>
-                  <Button variant="ghost" size="icon" className="opacity-0 group-hover:opacity-100 transition-opacity">
-                    <Star className="w-4 h-4" />
-                  </Button>
-                </div>
-                <CardTitle className="text-lg font-semibold mt-3">
-                  {resource.title}
-                </CardTitle>
-                <CardDescription>{resource.description}</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                  <span className="px-2 py-1 rounded-lg bg-muted text-xs font-medium">
-                    {resource.category}
-                  </span>
-                </div>
-              </CardContent>
-            </Card>
-          ))}
-
-          {/* Empty state card */}
-          <Card className="card-fun border-dashed border-2 cursor-pointer group hover:border-primary/50">
-            <CardContent className="flex flex-col items-center justify-center h-full min-h-[180px] text-muted-foreground">
-              <div className="w-12 h-12 rounded-full bg-muted flex items-center justify-center mb-3 group-hover:bg-primary/10 transition-colors">
-                <Plus className="w-6 h-6 group-hover:text-primary transition-colors" />
-              </div>
-              <p className="font-medium">新增類別</p>
-            </CardContent>
-          </Card>
-        </div>
-
-        {/* Quick links section */}
-        <div className="mt-12">
-          <h2 className="text-xl font-semibold mb-4">快速連結</h2>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {[
-              { title: 'GitHub', url: '#' },
-              { title: 'Notion', url: '#' },
-              { title: 'Figma', url: '#' },
-              { title: 'Google Drive', url: '#' },
-            ].map((link, i) => (
-              <div
-                key={i}
-                className="flex items-center gap-3 p-4 rounded-xl bg-card border border-border hover:shadow-soft transition-all cursor-pointer group"
-              >
-                <div className="w-8 h-8 rounded-lg bg-muted flex items-center justify-center group-hover:bg-primary/10 transition-colors">
-                  <Link2 className="w-4 h-4 text-muted-foreground group-hover:text-primary transition-colors" />
-                </div>
-                <span className="font-medium flex-1">{link.title}</span>
-                <ExternalLink className="w-4 h-4 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
-              </div>
+                  <CardTitle className="text-lg font-semibold mt-3">
+                    {resource.title}
+                  </CardTitle>
+                  {resource.content && (
+                    <CardDescription className="line-clamp-2">{resource.content}</CardDescription>
+                  )}
+                </CardHeader>
+                <CardContent>
+                  <div className="flex items-center justify-between">
+                    <span className="px-2 py-1 rounded-lg bg-muted text-xs font-medium">
+                      {resource.category || '一般'}
+                    </span>
+                    {resource.url && (
+                      <a
+                        href={resource.url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="flex items-center gap-1 text-sm text-primary hover:underline"
+                      >
+                        開啟連結
+                        <ExternalLink className="w-3 h-3" />
+                      </a>
+                    )}
+                  </div>
+                </CardContent>
+              </Card>
             ))}
           </div>
-        </div>
+        )}
       </div>
     </div>
   );
