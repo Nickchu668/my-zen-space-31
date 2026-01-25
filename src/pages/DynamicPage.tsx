@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
-import { FileText, Loader2, Plus, ExternalLink, Link2, Pencil, Trash2, Star } from 'lucide-react';
+import { FileText, Loader2, Plus, ExternalLink, Link2, Pencil, Trash2, Star, Instagram, Users } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
@@ -9,6 +9,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { useAuth } from '@/hooks/useAuth';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 
 interface PageData {
   id: string;
@@ -32,7 +33,31 @@ interface PageItem {
   created_by: string | null;
   creator_name: string | null;
   is_starred: boolean;
+  followers_count: string | null;
 }
+
+// Helper to check if URL is Instagram
+const isInstagramUrl = (url: string | null): boolean => {
+  if (!url) return false;
+  return url.includes('instagram.com') || url.includes('instagr.am');
+};
+
+// Extract Instagram username from URL
+const getInstagramUsername = (url: string | null): string | null => {
+  if (!url) return null;
+  const match = url.match(/instagram\.com\/([^/?]+)/);
+  return match ? match[1] : null;
+};
+
+// Format follower count for display
+const formatFollowers = (count: string | null): string => {
+  if (!count) return '';
+  const num = parseInt(count.replace(/,/g, ''), 10);
+  if (isNaN(num)) return count;
+  if (num >= 1000000) return (num / 1000000).toFixed(1) + 'M';
+  if (num >= 1000) return (num / 1000).toFixed(1) + 'K';
+  return num.toString();
+};
 
 export function DynamicPage() {
   const { slug } = useParams<{ slug: string }>();
@@ -162,11 +187,12 @@ export function DynamicPage() {
       }
     }
 
-    // Map the data to include creator_name
+    // Map the data to include creator_name and followers_count
     const itemsWithCreator = itemsData.map((item) => ({
       ...item,
       creator_name: item.created_by ? profilesMap[item.created_by] || null : null,
       is_starred: item.is_starred || false,
+      followers_count: item.followers_count || null,
     }));
 
     // Sort: starred items first, then by sort_order/created_at
@@ -416,18 +442,33 @@ export function DynamicPage() {
                   )} />
                 </Button>
 
-                {/* Icon */}
-                <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center shrink-0 group-hover:bg-primary/20 transition-colors">
-                  {item.url ? (
-                    <Link2 className="w-5 h-5 text-primary" />
-                  ) : (
-                    <FileText className="w-5 h-5 text-primary" />
-                  )}
-                </div>
+                {/* Icon - Instagram avatar or generic icon */}
+                {isInstagramUrl(item.url) ? (
+                  <Avatar className="w-10 h-10 shrink-0">
+                    <AvatarImage 
+                      src={`https://unavatar.io/instagram/${getInstagramUsername(item.url)}`} 
+                      alt={item.title}
+                    />
+                    <AvatarFallback className="bg-gradient-to-br from-purple-500 via-pink-500 to-orange-400">
+                      <Instagram className="w-5 h-5 text-white" />
+                    </AvatarFallback>
+                  </Avatar>
+                ) : (
+                  <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center shrink-0 group-hover:bg-primary/20 transition-colors">
+                    {item.url ? (
+                      <Link2 className="w-5 h-5 text-primary" />
+                    ) : (
+                      <FileText className="w-5 h-5 text-primary" />
+                    )}
+                  </div>
+                )}
 
                 {/* Content */}
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2">
+                    {isInstagramUrl(item.url) && (
+                      <Instagram className="w-4 h-4 text-pink-500 shrink-0" />
+                    )}
                     <h3 className="font-semibold truncate">{item.title}</h3>
                     {item.creator_name && (
                       <span className="text-xs text-muted-foreground shrink-0">
@@ -435,9 +476,23 @@ export function DynamicPage() {
                       </span>
                     )}
                   </div>
-                  {item.content && (
-                    <p className="text-sm text-muted-foreground truncate">{item.content}</p>
-                  )}
+                  <div className="flex items-center gap-2">
+                    {item.followers_count && (
+                      <span className="flex items-center gap-1 text-sm text-muted-foreground">
+                        <Users className="w-3 h-3" />
+                        {formatFollowers(item.followers_count)} 追蹤者
+                      </span>
+                    )}
+                    {item.content && !item.followers_count && (
+                      <p className="text-sm text-muted-foreground truncate">{item.content}</p>
+                    )}
+                    {item.content && item.followers_count && (
+                      <span className="text-muted-foreground">•</span>
+                    )}
+                    {item.content && item.followers_count && (
+                      <p className="text-sm text-muted-foreground truncate">{item.content}</p>
+                    )}
+                  </div>
                 </div>
 
                 {/* Category */}
