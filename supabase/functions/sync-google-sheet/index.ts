@@ -25,37 +25,44 @@ function parseCSV(csvText: string): SheetRow[] {
 
   // Parse data rows
   const rows: SheetRow[] = [];
+  
+  // Find title and content column indices
+  const headerLower = headers.map(h => h.toLowerCase().trim());
+  
+  // Priority for title: exact match > contains match
+  let titleIdx = headerLower.findIndex(h => h === 'title' || h === '標題');
+  if (titleIdx === -1) {
+    titleIdx = headerLower.findIndex(h => h.includes('title') || h.includes('標題'));
+  }
+  
+  // Priority for content: exact match > contains match
+  let contentIdx = headerLower.findIndex(h => h === 'content' || h === '內容');
+  if (contentIdx === -1) {
+    contentIdx = headerLower.findIndex(h => 
+      h.includes('content') || h.includes('內容') || h.includes('note') || h.includes('筆記')
+    );
+  }
+
+  // Fallback to first two columns if not found
+  if (titleIdx === -1 && headers.length > 0) titleIdx = 0;
+  if (contentIdx === -1 && headers.length > 1) contentIdx = 1;
+  
+  console.log("Title column index:", titleIdx, "Content column index:", contentIdx);
+
   for (let i = 1; i < lines.length; i++) {
     const values = parseCSVLine(lines[i]);
-    const row: SheetRow = { title: '', content: '' };
     
-    headers.forEach((header, index) => {
-      const value = values[index] || '';
-      row[header.toLowerCase().trim()] = value;
-    });
+    let title = titleIdx >= 0 && titleIdx < values.length ? values[titleIdx].trim() : '';
+    let content = contentIdx >= 0 && contentIdx < values.length ? values[contentIdx].trim() : '';
 
-    // Auto-detect title and content columns
-    // Priority: exact match > contains match > first two columns
-    let titleKey = headers.find(h => h.toLowerCase() === 'title' || h.toLowerCase() === '標題');
-    let contentKey = headers.find(h => h.toLowerCase() === 'content' || h.toLowerCase() === '內容');
-
-    if (!titleKey) {
-      titleKey = headers.find(h => h.toLowerCase().includes('title') || h.toLowerCase().includes('標題'));
+    // If title is empty but content exists, use content as title (truncated)
+    if (!title && content) {
+      title = content.length > 100 ? content.substring(0, 100) + '...' : content;
     }
-    if (!contentKey) {
-      contentKey = headers.find(h => h.toLowerCase().includes('content') || h.toLowerCase().includes('內容') || h.toLowerCase().includes('note') || h.toLowerCase().includes('筆記'));
-    }
-
-    // Fallback to first two columns
-    if (!titleKey && headers.length > 0) titleKey = headers[0];
-    if (!contentKey && headers.length > 1) contentKey = headers[1];
-
-    row.title = titleKey ? (row[titleKey.toLowerCase().trim()] || '') : '';
-    row.content = contentKey ? (row[contentKey.toLowerCase().trim()] || '') : '';
 
     // Skip empty rows
-    if (row.title || row.content) {
-      rows.push(row);
+    if (title) {
+      rows.push({ title, content });
     }
   }
 
