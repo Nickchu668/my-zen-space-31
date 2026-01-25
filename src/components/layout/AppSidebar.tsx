@@ -41,6 +41,15 @@ export function AppSidebar() {
 
   useEffect(() => {
     fetchPages();
+    
+    const handlePagesUpdated = () => {
+      fetchPages();
+    };
+    
+    window.addEventListener('pages-updated', handlePagesUpdated);
+    return () => {
+      window.removeEventListener('pages-updated', handlePagesUpdated);
+    };
   }, []);
 
   const fetchPages = async () => {

@@ -233,6 +233,7 @@ export function AdminPage() {
       setNewPage({ title: '', slug: '', icon: 'file-text', description: '' });
       setIsCreatingPage(false);
       fetchPages();
+      window.dispatchEvent(new CustomEvent('pages-updated'));
     }
   };
 
@@ -256,6 +257,7 @@ export function AdminPage() {
       toast({ title: '頁面已更新' });
       setEditingPage(null);
       fetchPages();
+      window.dispatchEvent(new CustomEvent('pages-updated'));
     }
   };
 
@@ -267,6 +269,7 @@ export function AdminPage() {
     } else {
       toast({ title: '頁面已刪除' });
       fetchPages();
+      window.dispatchEvent(new CustomEvent('pages-updated'));
     }
   };
 
