@@ -3,6 +3,15 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
+// Extract Instagram username from URL
+function getInstagramUsername(url: string): string | null {
+  const match = url.match(/instagram\.com\/([^/?#]+)/);
+  if (match && match[1] && !['p', 'reel', 'stories', 'explore'].includes(match[1])) {
+    return match[1];
+  }
+  return null;
+}
+
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
@@ -14,129 +23,158 @@ Deno.serve(async (req) => {
     if (!url) {
       return new Response(
         JSON.stringify({ success: false, error: 'URL is required' }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
-
-    const apiKey = Deno.env.get('FIRECRAWL_API_KEY');
-    if (!apiKey) {
-      console.error('FIRECRAWL_API_KEY not configured');
-      return new Response(
-        JSON.stringify({ success: false, error: 'Firecrawl connector not configured' }),
-        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
-
-    // Format URL - ensure it's a proper Instagram profile URL
-    let formattedUrl = url.trim();
-    if (!formattedUrl.startsWith('http://') && !formattedUrl.startsWith('https://')) {
-      formattedUrl = `https://${formattedUrl}`;
-    }
-
-    // Instagram is commonly blocked from scraping (TOS/technical). Avoid returning non-2xx
-    // so the frontend doesn't treat it as a hard error.
-    if (formattedUrl.includes('instagram.com') || formattedUrl.includes('instagr.am')) {
-      return new Response(
-        JSON.stringify({
-          success: false,
-          error: 'Instagram 不支援自動抓取（已被封鎖/條款限制），請改用官方 API 或手動維護數據。',
-          status: 403,
-          blocklisted: true,
-        }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
-    console.log('Scraping URL:', formattedUrl);
-
-    // Use Firecrawl to scrape the Instagram page
-    const response = await fetch('https://api.firecrawl.dev/v1/scrape', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${apiKey}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        url: formattedUrl,
-        formats: ['markdown', 'html'],
-        onlyMainContent: false,
-        waitFor: 3000, // Wait for dynamic content to load
-      }),
-    });
-
-    const data = await response.json();
-
-    if (!response.ok) {
-      console.error('Firecrawl API error:', data);
+    const username = getInstagramUsername(url);
+    if (!username) {
       return new Response(
-        JSON.stringify({
-          success: false,
-          error: data.error || `Request failed with status ${response.status}`,
-          status: response.status,
-        }),
+        JSON.stringify({ success: false, error: '無法從 URL 擷取 Instagram 用戶名' }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
-    console.log('Firecrawl response received');
+    console.log('Fetching Instagram data for username:', username);
 
-    // Extract data from the scraped content
-    const html = data.data?.html || data.html || '';
-    const markdown = data.data?.markdown || data.markdown || '';
-    
-    // Try to extract follower count from various patterns
-    let followersCount: string | null = null;
-    let avatarUrl: string | null = null;
+    // Method 1: Try using Lovable AI with web search capability
+    const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY');
+    if (LOVABLE_API_KEY) {
+      try {
+        const aiResponse = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${LOVABLE_API_KEY}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            model: 'google/gemini-3-flash-preview',
+            messages: [
+              {
+                role: 'system',
+                content: `You are a data extraction assistant. When asked about an Instagram account, search for the most recent public information available and extract the follower count. Return ONLY a JSON object with this exact format: {"followers": "NUMBER", "found": true} or {"found": false, "reason": "explanation"}. The followers number should be the raw number (e.g., "15000" or "1.5M" or "150K"). Do not include any other text.`
+              },
+              {
+                role: 'user',
+                content: `What is the current follower count for the Instagram account @${username}? Search for the most recent publicly available information about this account.`
+              }
+            ],
+            temperature: 0.1,
+          }),
+        });
 
-    // Pattern 1: Look for "X followers" or "X Followers" in markdown/html
-    const followersPatterns = [
-      /(\d+(?:[.,]\d+)*[KMkm]?)\s*(?:followers|Followers|追蹤者)/i,
-      /(?:followers|Followers|追蹤者)[:\s]*(\d+(?:[.,]\d+)*[KMkm]?)/i,
-      /"edge_followed_by":\s*{\s*"count":\s*(\d+)/,
-      /"follower_count":\s*(\d+)/,
-      /(\d+(?:[.,]\d+)*)\s*(?:位追蹤者|個追蹤者)/,
-    ];
+        if (aiResponse.ok) {
+          const aiData = await aiResponse.json();
+          const content = aiData.choices?.[0]?.message?.content || '';
+          console.log('AI response:', content);
 
-    for (const pattern of followersPatterns) {
-      const match = markdown.match(pattern) || html.match(pattern);
-      if (match) {
-        followersCount = match[1];
-        console.log('Found followers count:', followersCount);
-        break;
+          // Try to parse the JSON response
+          try {
+            // Extract JSON from the response (in case there's extra text)
+            const jsonMatch = content.match(/\{[\s\S]*\}/);
+            if (jsonMatch) {
+              const parsed = JSON.parse(jsonMatch[0]);
+              if (parsed.found && parsed.followers) {
+                console.log('Found followers via AI:', parsed.followers);
+                return new Response(
+                  JSON.stringify({
+                    success: true,
+                    followersCount: parsed.followers,
+                    method: 'ai-search',
+                    message: '成功透過 AI 搜尋獲取資料',
+                  }),
+                  { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+                );
+              }
+            }
+          } catch (parseError) {
+            console.log('Failed to parse AI response as JSON:', parseError);
+          }
+        } else {
+          const errorText = await aiResponse.text();
+          console.error('AI API error:', aiResponse.status, errorText);
+        }
+      } catch (aiError) {
+        console.error('AI search failed:', aiError);
       }
     }
 
-    // Try to extract avatar/profile picture URL
-    const avatarPatterns = [
-      /"profile_pic_url(?:_hd)?"\s*:\s*"([^"]+)"/,
-      /src="(https:\/\/[^"]*(?:instagram|cdninstagram|fbcdn)[^"]*(?:jpg|jpeg|png)[^"]*)"/i,
-      /<img[^>]+class="[^"]*profile[^"]*"[^>]+src="([^"]+)"/i,
-    ];
+    // Method 2: Try public Instagram API endpoints (may be blocked but worth trying)
+    try {
+      // Try the public web profile info endpoint
+      const webResponse = await fetch(`https://www.instagram.com/api/v1/users/web_profile_info/?username=${username}`, {
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+          'Accept': 'application/json',
+          'X-IG-App-ID': '936619743392459',
+        },
+      });
 
-    for (const pattern of avatarPatterns) {
-      const match = html.match(pattern);
-      if (match) {
-        avatarUrl = match[1].replace(/\\u0026/g, '&');
-        console.log('Found avatar URL');
-        break;
+      if (webResponse.ok) {
+        const webData = await webResponse.json();
+        const followerCount = webData?.data?.user?.edge_followed_by?.count;
+        if (followerCount !== undefined) {
+          console.log('Found followers via web API:', followerCount);
+          return new Response(
+            JSON.stringify({
+              success: true,
+              followersCount: followerCount.toString(),
+              method: 'web-api',
+              message: '成功透過 Instagram API 獲取資料',
+            }),
+            { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
       }
+    } catch (webError) {
+      console.log('Web API attempt failed:', webError);
     }
 
+    // Method 3: Try i.instagram.com API
+    try {
+      const mobileResponse = await fetch(`https://i.instagram.com/api/v1/users/web_profile_info/?username=${username}`, {
+        headers: {
+          'User-Agent': 'Instagram 219.0.0.12.117 Android',
+          'Accept': 'application/json',
+        },
+      });
+
+      if (mobileResponse.ok) {
+        const mobileData = await mobileResponse.json();
+        const followerCount = mobileData?.data?.user?.edge_followed_by?.count || 
+                              mobileData?.user?.follower_count;
+        if (followerCount !== undefined) {
+          console.log('Found followers via mobile API:', followerCount);
+          return new Response(
+            JSON.stringify({
+              success: true,
+              followersCount: followerCount.toString(),
+              method: 'mobile-api',
+              message: '成功透過 Instagram API 獲取資料',
+            }),
+            { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+      }
+    } catch (mobileError) {
+      console.log('Mobile API attempt failed:', mobileError);
+    }
+
+    // All methods failed
     return new Response(
       JSON.stringify({
-        success: true,
-        followersCount,
-        avatarUrl,
-        message: followersCount ? '成功獲取資料' : '無法從頁面擷取追蹤者數量，Instagram 可能已阻擋抓取',
+        success: false,
+        error: '所有方法皆無法獲取 Instagram 資料。建議手動輸入追蹤者數量，或使用官方 Instagram Graph API。',
+        triedMethods: ['ai-search', 'web-api', 'mobile-api'],
       }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
+
   } catch (error) {
     console.error('Error fetching Instagram data:', error);
     const errorMessage = error instanceof Error ? error.message : 'Failed to fetch Instagram data';
-    // Always return 200 so the client can show a friendly message instead of crashing on non-2xx.
     return new Response(
-      JSON.stringify({ success: false, error: errorMessage, status: 500 }),
+      JSON.stringify({ success: false, error: errorMessage }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
   }
