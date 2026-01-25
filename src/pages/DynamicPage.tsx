@@ -272,19 +272,22 @@ export function DynamicPage() {
 
       const raw = String(data.followersCount).trim();
       const looksLikeNumber = /^\d[\d,]*$/.test(raw);
-      const looksLikeEstimate = /^([\d.,]+)\s*([KkMm])$/.test(raw);
+      const looksLikeEstimateSuffix = /^([\d.,]+)\s*([KkMm])$/.test(raw);
 
-      // Avoid overwriting DB with an estimated/stale value like "11.1K".
+      // If AI returned something like "11.1K", reject it
+      if (looksLikeEstimateSuffix) {
+        toast.error('抓取結果為估算值（如 11.1K），可能不準確。請改用手動輸入精確數字。');
+        return;
+      }
+
+      // If not a numeric format at all, reject
       if (!looksLikeNumber) {
-        if (looksLikeEstimate) {
-          toast.error('抓取結果為估算值（可能不準），已避免自動覆蓋。請改用手動輸入或稍後再試。');
-        } else {
-          toast.error('抓取到的追蹤者格式不正確，已避免自動覆蓋。');
-        }
+        toast.error('抓取到的追蹤者格式不正確，已避免自動覆蓋。');
         return;
       }
 
       const normalized = raw.replace(/,/g, '');
+      const isEstimate = data.isEstimate === true;
 
       // Persist to DB (respects RLS; button only appears for editors/owners)
       const { error: updateError } = await supabase
@@ -298,7 +301,12 @@ export function DynamicPage() {
       setItems(prev => prev.map(i =>
         i.id === item.id ? { ...i, followers_count: normalized } : i
       ));
-      toast.success(`已獲取追蹤者數量: ${normalized}`);
+      
+      if (isEstimate) {
+        toast.warning(`追蹤者數量: ${parseInt(normalized, 10).toLocaleString()}（透過 AI 搜尋，可能有誤差）`);
+      } else {
+        toast.success(`已獲取追蹤者數量: ${parseInt(normalized, 10).toLocaleString()}`);
+      }
     } catch (error: any) {
       console.error('Error fetching Instagram data:', error);
       toast.error('抓取失敗: ' + (error.message || '未知錯誤'));
