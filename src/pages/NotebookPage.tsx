@@ -6,6 +6,8 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/hooks/use-toast';
+import { useGoogleSheetSync } from '@/hooks/useGoogleSheetSync';
+import { SyncStatusBadge } from '@/components/notebook/SyncStatusBadge';
 import { 
   BookOpen, 
   Plus, 
@@ -53,10 +55,18 @@ export function NotebookPage() {
   const [newContent, setNewContent] = useState('');
   const { user, isAdmin } = useAuth();
   const { toast } = useToast();
+  const { isSyncing, lastSyncTime, error: syncError, sync } = useGoogleSheetSync(isAdmin);
 
   useEffect(() => {
     if (user && isAdmin) fetchNotes();
   }, [user, isAdmin]);
+
+  // Refetch notes after sync
+  useEffect(() => {
+    if (lastSyncTime && isAdmin) {
+      fetchNotes();
+    }
+  }, [lastSyncTime, isAdmin]);
 
   // Only admin can access this page
   if (!isAdmin) {
@@ -163,13 +173,21 @@ export function NotebookPage() {
               <p className="text-muted-foreground">記錄你的想法和筆記</p>
             </div>
           </div>
-          <Button 
-            onClick={() => setIsCreating(true)}
-            className="btn-fun gradient-primary text-primary-foreground gap-2"
-          >
-            <Plus className="w-4 h-4" />
-            新增筆記
-          </Button>
+          <div className="flex items-center gap-2">
+            <SyncStatusBadge
+              isSyncing={isSyncing}
+              lastSyncTime={lastSyncTime}
+              error={syncError}
+              onSync={sync}
+            />
+            <Button 
+              onClick={() => setIsCreating(true)}
+              className="btn-fun gradient-primary text-primary-foreground gap-2"
+            >
+              <Plus className="w-4 h-4" />
+              新增筆記
+            </Button>
+          </div>
         </div>
 
         {/* Search */}
