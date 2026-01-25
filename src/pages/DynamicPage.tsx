@@ -10,6 +10,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { InstagramAvatar } from '@/components/instagram/InstagramAvatar';
 
 interface PageData {
   id: string;
@@ -594,11 +595,7 @@ export function DynamicPage() {
 
                 {/* Icon - Instagram avatar or generic icon */}
                 {isInstagramUrl(item.url) ? (
-                  <div className="w-12 h-12 rounded-full shrink-0 bg-gradient-to-br from-purple-500 via-pink-500 to-orange-400 p-0.5">
-                    <div className="w-full h-full rounded-full bg-card flex items-center justify-center">
-                      <Instagram className="w-6 h-6 text-pink-500" />
-                    </div>
-                  </div>
+                  <InstagramAvatar username={getInstagramUsername(item.url)} size="md" />
                 ) : (
                   <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center shrink-0 group-hover:bg-primary/20 transition-colors">
                     {item.url ? (
