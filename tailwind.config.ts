@@ -69,6 +69,10 @@ export default {
           DEFAULT: "hsl(var(--sky))",
           light: "hsl(var(--sky-light))",
         },
+        star: {
+          DEFAULT: "hsl(var(--star))",
+          foreground: "hsl(var(--star-foreground))",
+        },
         cloud: "hsl(var(--cloud))",
         storm: "hsl(var(--storm))",
         mist: "hsl(var(--mist))",
