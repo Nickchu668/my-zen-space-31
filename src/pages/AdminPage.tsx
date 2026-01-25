@@ -256,7 +256,7 @@ export function AdminPage() {
                     <TableCell>
                       <Select
                         value={user.role}
-                        onValueChange={(value) => updateUserRole(user.id, value)}
+                        onValueChange={(value) => updateUserRole(user.id, value as 'admin' | 'premium' | 'member')}
                       >
                         <SelectTrigger className="w-32">
                           <SelectValue />
