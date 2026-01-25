@@ -52,6 +52,16 @@ const getInstagramUsername = (url: string | null): string | null => {
 // Format follower count for display
 const formatFollowers = (count: string | null): string => {
   if (!count) return '';
+  
+  // If already formatted (contains K, M, k, m), return as-is but normalize case
+  const formattedMatch = count.match(/^([\d.,]+)\s*([KkMm])$/);
+  if (formattedMatch) {
+    const num = formattedMatch[1];
+    const suffix = formattedMatch[2].toUpperCase();
+    return `${num}${suffix}`;
+  }
+  
+  // Try to parse as raw number
   const num = parseInt(count.replace(/,/g, ''), 10);
   if (isNaN(num)) return count;
   if (num >= 1000000) return (num / 1000000).toFixed(1) + 'M';
