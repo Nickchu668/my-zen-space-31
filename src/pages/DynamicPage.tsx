@@ -75,6 +75,12 @@ const formatFollowers = (count: string | null): string => {
   return num.toString();
 };
 
+// Generate proxied image URL for external images
+const getProxiedImageUrl = (imageUrl: string): string => {
+  const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+  return `${supabaseUrl}/functions/v1/proxy-image?url=${encodeURIComponent(imageUrl)}`;
+};
+
 export function DynamicPage() {
   const { slug } = useParams<{ slug: string }>();
   const { user, role, isAdmin } = useAuth();
@@ -619,10 +625,9 @@ export function DynamicPage() {
                     <div className="w-12 h-12 rounded-full shrink-0 bg-gradient-to-br from-purple-500 via-pink-500 to-orange-400 p-0.5">
                       <div className="w-full h-full rounded-full overflow-hidden bg-card">
                         <img
-                          src={item.avatar_url}
+                          src={getProxiedImageUrl(item.avatar_url)}
                           alt={`${item.title} avatar`}
                           className="w-full h-full object-cover"
-                          referrerPolicy="no-referrer"
                           onError={() => {
                             // Use React state to track failed avatars instead of DOM manipulation
                             setFailedAvatars(prev => new Set(prev).add(item.id));
