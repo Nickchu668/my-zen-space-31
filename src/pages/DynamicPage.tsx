@@ -662,29 +662,16 @@ export function DynamicPage() {
                       <Instagram className="w-4 h-4 text-pink-500 shrink-0" />
                     )}
                     <h3 className="font-semibold truncate">{item.title}</h3>
-                    {item.creator_name && (
-                      <span className="text-xs text-muted-foreground shrink-0">
-                        by {item.creator_name}
-                      </span>
-                    )}
-                  </div>
-                  <div className="flex items-center gap-2">
                     {item.followers_count && (
-                      <span className="flex items-center gap-1 text-sm text-muted-foreground">
+                      <span className="flex items-center gap-1 text-xs text-muted-foreground shrink-0">
                         <Users className="w-3 h-3" />
-                        {formatFollowers(item.followers_count)} 追蹤者
+                        {formatFollowers(item.followers_count)}
                       </span>
                     )}
-                    {item.content && !item.followers_count && (
-                      <p className="text-sm text-muted-foreground truncate">{item.content}</p>
-                    )}
-                    {item.content && item.followers_count && (
-                      <span className="text-muted-foreground">•</span>
-                    )}
-                    {item.content && item.followers_count && (
-                      <p className="text-sm text-muted-foreground truncate">{item.content}</p>
-                    )}
                   </div>
+                  {item.content && (
+                    <p className="text-sm text-muted-foreground truncate">{item.content}</p>
+                  )}
                 </div>
 
                 {/* Category */}
