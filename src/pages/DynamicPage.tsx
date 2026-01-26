@@ -620,6 +620,8 @@ export function DynamicPage() {
                         src={item.avatar_url}
                         alt={`${item.title} avatar`}
                         className="w-full h-full rounded-full object-cover bg-card"
+                        referrerPolicy="no-referrer"
+                        crossOrigin="anonymous"
                         onError={(e) => {
                           // Fallback to first letter if image fails to load
                           e.currentTarget.style.display = 'none';
