@@ -35,6 +35,7 @@ interface PageItem {
   creator_name: string | null;
   is_starred: boolean;
   followers_count: string | null;
+  avatar_url: string | null;
 }
 
 // Helper to check if URL is Instagram
@@ -83,7 +84,7 @@ export function DynamicPage() {
   const [error, setError] = useState<string | null>(null);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingItem, setEditingItem] = useState<PageItem | null>(null);
-  const [formData, setFormData] = useState({ title: '', content: '', url: '', category: '一般', followers_count: '' });
+  const [formData, setFormData] = useState({ title: '', content: '', url: '', category: '一般', followers_count: '', avatar_url: '' });
   const [saving, setSaving] = useState(false);
   const [canEdit, setCanEdit] = useState(false);
   const [canAdd, setCanAdd] = useState(false);
@@ -259,6 +260,7 @@ export function DynamicPage() {
       creator_name: item.created_by ? profilesMap[item.created_by] || null : null,
       is_starred: item.is_starred || false,
       followers_count: item.followers_count || null,
+      avatar_url: item.avatar_url || null,
     }));
 
     // Sort: starred items first, then by sort_order/created_at
@@ -383,6 +385,7 @@ export function DynamicPage() {
             url: formData.url.trim() || null,
             category: formData.category.trim() || '一般',
             followers_count: formData.followers_count.trim() || null,
+            avatar_url: formData.avatar_url.trim() || null,
           })
           .eq('id', editingItem.id);
 
@@ -398,6 +401,7 @@ export function DynamicPage() {
             url: formData.url.trim() || null,
             category: formData.category.trim() || '一般',
             followers_count: formData.followers_count.trim() || null,
+            avatar_url: formData.avatar_url.trim() || null,
             created_by: user?.id,
           });
 
@@ -407,7 +411,7 @@ export function DynamicPage() {
 
       setIsDialogOpen(false);
       setEditingItem(null);
-      setFormData({ title: '', content: '', url: '', category: '一般', followers_count: '' });
+      setFormData({ title: '', content: '', url: '', category: '一般', followers_count: '', avatar_url: '' });
       await fetchItems(page.id);
     } catch (error: any) {
       toast.error('儲存失敗: ' + error.message);
@@ -424,6 +428,7 @@ export function DynamicPage() {
       url: item.url || '',
       category: item.category || '一般',
       followers_count: item.followers_count || '',
+      avatar_url: item.avatar_url || '',
     });
     setIsDialogOpen(true);
   };
@@ -443,7 +448,7 @@ export function DynamicPage() {
 
   const openDialog = () => {
     setEditingItem(null);
-    setFormData({ title: '', content: '', url: '', category: '一般', followers_count: '' });
+    setFormData({ title: '', content: '', url: '', category: '一般', followers_count: '', avatar_url: '' });
     setIsDialogOpen(true);
   };
 
@@ -542,17 +547,31 @@ export function DynamicPage() {
                     />
                   </div>
                   {isInstagramUrl(formData.url) && (
-                    <div>
-                      <label className="text-sm font-medium mb-1 block flex items-center gap-2">
-                        <Users className="w-4 h-4" />
-                        追蹤者數量
-                      </label>
-                      <Input
-                        placeholder="例如: 15000 或 1.5M"
-                        value={formData.followers_count}
-                        onChange={(e) => setFormData({ ...formData, followers_count: e.target.value })}
-                      />
-                    </div>
+                    <>
+                      <div>
+                        <label className="text-sm font-medium mb-1 block flex items-center gap-2">
+                          <ImageIcon className="w-4 h-4" />
+                          頻道頭像 URL
+                        </label>
+                        <Input
+                          placeholder="https://example.com/avatar.jpg"
+                          value={formData.avatar_url}
+                          onChange={(e) => setFormData({ ...formData, avatar_url: e.target.value })}
+                        />
+                        <p className="text-xs text-muted-foreground mt-1">輸入圖片網址以自訂頻道頭像</p>
+                      </div>
+                      <div>
+                        <label className="text-sm font-medium mb-1 block flex items-center gap-2">
+                          <Users className="w-4 h-4" />
+                          追蹤者數量
+                        </label>
+                        <Input
+                          placeholder="例如: 15000 或 1.5M"
+                          value={formData.followers_count}
+                          onChange={(e) => setFormData({ ...formData, followers_count: e.target.value })}
+                        />
+                      </div>
+                    </>
                   )}
                   <Button onClick={handleSubmit} disabled={saving} className="w-full">
                     {saving ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
@@ -593,9 +612,24 @@ export function DynamicPage() {
                   )} />
                 </Button>
 
-                {/* Icon - Instagram avatar or generic icon */}
+                {/* Icon - Manual avatar URL, Instagram auto-fetch, or generic icon */}
                 {isInstagramUrl(item.url) ? (
-                  <InstagramAvatar username={getInstagramUsername(item.url)} size="md" />
+                  item.avatar_url ? (
+                    <div className="w-12 h-12 rounded-full shrink-0 bg-gradient-to-br from-purple-500 via-pink-500 to-orange-400 p-0.5">
+                      <img
+                        src={item.avatar_url}
+                        alt={`${item.title} avatar`}
+                        className="w-full h-full rounded-full object-cover bg-card"
+                        onError={(e) => {
+                          // Fallback to first letter if image fails to load
+                          e.currentTarget.style.display = 'none';
+                          e.currentTarget.parentElement!.innerHTML = `<div class="w-full h-full rounded-full bg-card flex items-center justify-center"><span class="text-sm font-bold text-pink-500">${item.title[0]?.toUpperCase() || '?'}</span></div>`;
+                        }}
+                      />
+                    </div>
+                  ) : (
+                    <InstagramAvatar username={getInstagramUsername(item.url)} size="md" />
+                  )
                 ) : (
                   <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center shrink-0 group-hover:bg-primary/20 transition-colors">
                     {item.url ? (

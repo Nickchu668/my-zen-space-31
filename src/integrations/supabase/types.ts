@@ -49,6 +49,7 @@ export type Database = {
       }
       page_items: {
         Row: {
+          avatar_url: string | null
           category: string | null
           content: string | null
           created_at: string
@@ -63,6 +64,7 @@ export type Database = {
           url: string | null
         }
         Insert: {
+          avatar_url?: string | null
           category?: string | null
           content?: string | null
           created_at?: string
@@ -77,6 +79,7 @@ export type Database = {
           url?: string | null
         }
         Update: {
+          avatar_url?: string | null
           category?: string | null
           content?: string | null
           created_at?: string
