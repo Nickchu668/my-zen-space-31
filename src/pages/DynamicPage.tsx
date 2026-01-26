@@ -90,6 +90,7 @@ export function DynamicPage() {
   const [canAdd, setCanAdd] = useState(false);
   const [fetchingFollowers, setFetchingFollowers] = useState<string | null>(null);
   const [ocrFollowers, setOcrFollowers] = useState<string | null>(null);
+  const [failedAvatars, setFailedAvatars] = useState<Set<string>>(new Set());
 
   const readFileAsDataUrl = (file: File): Promise<string> =>
     new Promise((resolve, reject) => {
@@ -614,7 +615,7 @@ export function DynamicPage() {
 
                 {/* Icon - Manual avatar URL, Instagram auto-fetch, or generic icon */}
                 {isInstagramUrl(item.url) ? (
-                  item.avatar_url ? (
+                  item.avatar_url && !failedAvatars.has(item.id) ? (
                     <div className="w-12 h-12 rounded-full shrink-0 bg-gradient-to-br from-purple-500 via-pink-500 to-orange-400 p-0.5">
                       <div className="w-full h-full rounded-full overflow-hidden bg-card">
                         <img
@@ -622,14 +623,18 @@ export function DynamicPage() {
                           alt={`${item.title} avatar`}
                           className="w-full h-full object-cover"
                           referrerPolicy="no-referrer"
-                          onError={(e) => {
-                            // Fallback to first letter if image fails to load
-                            const parent = e.currentTarget.parentElement;
-                            if (parent) {
-                              parent.innerHTML = `<div class="w-full h-full flex items-center justify-center"><span class="text-sm font-bold text-pink-500">${item.title[0]?.toUpperCase() || '?'}</span></div>`;
-                            }
+                          onError={() => {
+                            // Use React state to track failed avatars instead of DOM manipulation
+                            setFailedAvatars(prev => new Set(prev).add(item.id));
                           }}
                         />
+                      </div>
+                    </div>
+                  ) : failedAvatars.has(item.id) ? (
+                    // Fallback to first letter when avatar fails
+                    <div className="w-12 h-12 rounded-full shrink-0 bg-gradient-to-br from-purple-500 via-pink-500 to-orange-400 p-0.5">
+                      <div className="w-full h-full rounded-full bg-card flex items-center justify-center">
+                        <span className="text-sm font-bold text-pink-500">{item.title[0]?.toUpperCase() || '?'}</span>
                       </div>
                     </div>
                   ) : (
