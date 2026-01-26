@@ -616,18 +616,21 @@ export function DynamicPage() {
                 {isInstagramUrl(item.url) ? (
                   item.avatar_url ? (
                     <div className="w-12 h-12 rounded-full shrink-0 bg-gradient-to-br from-purple-500 via-pink-500 to-orange-400 p-0.5">
-                      <img
-                        src={item.avatar_url}
-                        alt={`${item.title} avatar`}
-                        className="w-full h-full rounded-full object-cover bg-card"
-                        referrerPolicy="no-referrer"
-                        crossOrigin="anonymous"
-                        onError={(e) => {
-                          // Fallback to first letter if image fails to load
-                          e.currentTarget.style.display = 'none';
-                          e.currentTarget.parentElement!.innerHTML = `<div class="w-full h-full rounded-full bg-card flex items-center justify-center"><span class="text-sm font-bold text-pink-500">${item.title[0]?.toUpperCase() || '?'}</span></div>`;
-                        }}
-                      />
+                      <div className="w-full h-full rounded-full overflow-hidden bg-card">
+                        <img
+                          src={item.avatar_url}
+                          alt={`${item.title} avatar`}
+                          className="w-full h-full object-cover"
+                          referrerPolicy="no-referrer"
+                          onError={(e) => {
+                            // Fallback to first letter if image fails to load
+                            const parent = e.currentTarget.parentElement;
+                            if (parent) {
+                              parent.innerHTML = `<div class="w-full h-full flex items-center justify-center"><span class="text-sm font-bold text-pink-500">${item.title[0]?.toUpperCase() || '?'}</span></div>`;
+                            }
+                          }}
+                        />
+                      </div>
                     </div>
                   ) : (
                     <InstagramAvatar username={getInstagramUsername(item.url)} size="md" />
