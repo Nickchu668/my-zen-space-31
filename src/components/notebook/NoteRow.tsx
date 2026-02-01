@@ -7,7 +7,9 @@ import {
   MoreVertical,
   Trash2,
   Edit3,
-  Loader2
+  Loader2,
+  ChevronDown,
+  ChevronRight
 } from 'lucide-react';
 import {
   DropdownMenu,
@@ -49,6 +51,7 @@ export function NoteRow({
   const [editTitle, setEditTitle] = useState(note.title);
   const [editContent, setEditContent] = useState(note.content || '');
   const [isDeleting, setIsDeleting] = useState(false);
+  const [isExpanded, setIsExpanded] = useState(false);
   const { toast } = useToast();
 
   const handleSave = () => {
@@ -134,14 +137,36 @@ export function NoteRow({
       )}
     >
       <div className="flex items-center gap-3 p-4">
+        {/* Expand toggle */}
+        {note.content && (
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-6 w-6 flex-shrink-0 p-0"
+            onClick={() => setIsExpanded(!isExpanded)}
+          >
+            {isExpanded ? (
+              <ChevronDown className="w-4 h-4 text-muted-foreground" />
+            ) : (
+              <ChevronRight className="w-4 h-4 text-muted-foreground" />
+            )}
+          </Button>
+        )}
+        
         {/* Pin indicator */}
         {note.is_pinned && (
           <Pin className="w-4 h-4 text-primary flex-shrink-0" />
         )}
         
-        {/* Title */}
-        <div className="flex-1 min-w-0">
-          <h3 className="font-medium text-foreground truncate">
+        {/* Title - clickable to expand */}
+        <div 
+          className={cn(
+            "flex-1 min-w-0",
+            note.content && "cursor-pointer"
+          )}
+          onClick={() => note.content && setIsExpanded(!isExpanded)}
+        >
+          <h3 className="font-medium text-foreground truncate hover:text-primary transition-colors">
             {note.title}
           </h3>
         </div>
@@ -182,6 +207,15 @@ export function NoteRow({
           </DropdownMenuContent>
         </DropdownMenu>
       </div>
+      
+      {/* Expanded content */}
+      {isExpanded && note.content && (
+        <div className="px-4 pb-4 pt-0 border-t border-border/50">
+          <p className="text-sm text-muted-foreground whitespace-pre-wrap mt-3">
+            {note.content}
+          </p>
+        </div>
+      )}
     </div>
   );
 }

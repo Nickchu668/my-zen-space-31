@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
-import { FileText, Loader2, Plus, ExternalLink, Link2, Pencil, Trash2, Star, Instagram, Users, RefreshCw, Image as ImageIcon } from 'lucide-react';
+import { FileText, Loader2, Plus, ExternalLink, Link2, Pencil, Trash2, Star, Instagram, Users, RefreshCw, Image as ImageIcon, ChevronDown, ChevronRight } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
@@ -97,6 +97,7 @@ export function DynamicPage() {
   const [fetchingFollowers, setFetchingFollowers] = useState<string | null>(null);
   const [ocrFollowers, setOcrFollowers] = useState<string | null>(null);
   const [failedAvatars, setFailedAvatars] = useState<Set<string>>(new Set());
+  const [expandedItems, setExpandedItems] = useState<Set<string>>(new Set());
 
   const readFileAsDataUrl = (file: File): Promise<string> =>
     new Promise((resolve, reject) => {
@@ -658,10 +659,56 @@ export function DynamicPage() {
                 {/* Content */}
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2">
+                    {/* Expand toggle */}
+                    {item.content && (
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-6 w-6 p-0 shrink-0"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setExpandedItems(prev => {
+                            const newSet = new Set(prev);
+                            if (newSet.has(item.id)) {
+                              newSet.delete(item.id);
+                            } else {
+                              newSet.add(item.id);
+                            }
+                            return newSet;
+                          });
+                        }}
+                      >
+                        {expandedItems.has(item.id) ? (
+                          <ChevronDown className="w-4 h-4 text-muted-foreground" />
+                        ) : (
+                          <ChevronRight className="w-4 h-4 text-muted-foreground" />
+                        )}
+                      </Button>
+                    )}
                     {isInstagramUrl(item.url) && (
                       <Instagram className="w-4 h-4 text-pink-500 shrink-0" />
                     )}
-                    <h3 className="font-semibold truncate">{item.title}</h3>
+                    <h3 
+                      className={cn(
+                        "font-semibold truncate",
+                        item.content && "cursor-pointer hover:text-primary transition-colors"
+                      )}
+                      onClick={() => {
+                        if (item.content) {
+                          setExpandedItems(prev => {
+                            const newSet = new Set(prev);
+                            if (newSet.has(item.id)) {
+                              newSet.delete(item.id);
+                            } else {
+                              newSet.add(item.id);
+                            }
+                            return newSet;
+                          });
+                        }
+                      }}
+                    >
+                      {item.title}
+                    </h3>
                     {item.followers_count && (
                       <span className="flex items-center gap-1 text-xs text-muted-foreground shrink-0">
                         <Users className="w-3 h-3" />
@@ -669,8 +716,11 @@ export function DynamicPage() {
                       </span>
                     )}
                   </div>
-                  {item.content && (
+                  {item.content && !expandedItems.has(item.id) && (
                     <p className="text-sm text-muted-foreground truncate">{item.content}</p>
+                  )}
+                  {item.content && expandedItems.has(item.id) && (
+                    <p className="text-sm text-muted-foreground whitespace-pre-wrap mt-2">{item.content}</p>
                   )}
                 </div>
 
