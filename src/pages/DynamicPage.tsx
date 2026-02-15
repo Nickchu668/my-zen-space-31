@@ -121,7 +121,7 @@ export function DynamicPage() {
         const updates: Record<string, string | null> = {};
         // Always refresh avatar URL (CDN URLs expire)
         if (data.avatarUrl) updates.avatar_url = data.avatarUrl;
-        if (data.followersCount && !item.followers_count) {
+        if (data.followersCount) {
           const raw = String(data.followersCount).trim();
           if (/^\d[\d,]*$/.test(raw)) updates.followers_count = raw.replace(/,/g, '');
         }
