@@ -98,6 +98,57 @@ export function DynamicPage() {
   const [ocrFollowers, setOcrFollowers] = useState<string | null>(null);
   const [failedAvatars, setFailedAvatars] = useState<Set<string>>(new Set());
   const [expandedItems, setExpandedItems] = useState<Set<string>>(new Set());
+  const [autoFetching, setAutoFetching] = useState<Set<string>>(new Set());
+
+  // Auto-fetch Instagram data (always refresh avatar URLs since they expire)
+  const autoFetchInstagramData = async (igItems: PageItem[]) => {
+    const needsFetch = igItems.filter(item => isInstagramUrl(item.url));
+    if (needsFetch.length === 0) return;
+
+    setAutoFetching(new Set(needsFetch.map(i => i.id)));
+
+    await Promise.all(needsFetch.map(async (item) => {
+      const username = getInstagramUsername(item.url);
+      if (!username) return;
+
+      try {
+        const { data, error } = await supabase.functions.invoke('auto-fetch-instagram', {
+          body: { username },
+        });
+
+        if (error || !data?.success) return;
+
+        const updates: Record<string, string | null> = {};
+        // Always refresh avatar URL (CDN URLs expire)
+        if (data.avatarUrl) updates.avatar_url = data.avatarUrl;
+        if (data.followersCount && !item.followers_count) {
+          const raw = String(data.followersCount).trim();
+          if (/^\d[\d,]*$/.test(raw)) updates.followers_count = raw.replace(/,/g, '');
+        }
+
+        if (Object.keys(updates).length === 0) return;
+
+        const { error: updateError } = await supabase
+          .from('page_items')
+          .update(updates)
+          .eq('id', item.id);
+
+        if (!updateError) {
+          setItems(prev => prev.map(i =>
+            i.id === item.id ? { ...i, ...updates } : i
+          ));
+        }
+      } catch (e) {
+        console.error(`Auto-fetch failed for @${username}:`, e);
+      } finally {
+        setAutoFetching(prev => {
+          const next = new Set(prev);
+          next.delete(item.id);
+          return next;
+        });
+      }
+    }));
+  };
 
   const readFileAsDataUrl = (file: File): Promise<string> =>
     new Promise((resolve, reject) => {
@@ -278,6 +329,9 @@ export function DynamicPage() {
     });
 
     setItems(sortedItems);
+
+    // Auto-fetch missing Instagram data
+    autoFetchInstagramData(sortedItems);
   };
 
   const toggleStar = async (item: PageItem) => {
