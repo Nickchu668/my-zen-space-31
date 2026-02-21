@@ -1,7 +1,7 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useParams } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
-import { FileText, Loader2, Plus, ExternalLink, Link2, Pencil, Trash2, Star, Instagram, Users, RefreshCw, Image as ImageIcon, ChevronDown, ChevronRight } from 'lucide-react';
+import { FileText, Loader2, Plus, ExternalLink, Link2, Pencil, Trash2, Star, Instagram, Users, RefreshCw, Image as ImageIcon, ChevronDown, ChevronRight, GripVertical } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
@@ -11,7 +11,23 @@ import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { InstagramAvatar } from '@/components/instagram/InstagramAvatar';
-
+import {
+  DndContext,
+  closestCenter,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+} from '@dnd-kit/core';
+import {
+  arrayMove,
+  SortableContext,
+  sortableKeyboardCoordinates,
+  useSortable,
+  verticalListSortingStrategy,
+} from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
 interface PageData {
   id: string;
   title: string;
@@ -81,6 +97,171 @@ const getProxiedImageUrl = (imageUrl: string): string => {
   return `${supabaseUrl}/functions/v1/proxy-image?url=${encodeURIComponent(imageUrl)}`;
 };
 
+// Sortable item component for drag-and-drop
+interface SortablePageItemProps {
+  item: PageItem;
+  canEdit: boolean;
+  canDrag: boolean;
+  user: any;
+  expandedItems: Set<string>;
+  setExpandedItems: React.Dispatch<React.SetStateAction<Set<string>>>;
+  failedAvatars: Set<string>;
+  setFailedAvatars: React.Dispatch<React.SetStateAction<Set<string>>>;
+  fetchingFollowers: string | null;
+  ocrFollowers: string | null;
+  toggleStar: (item: PageItem) => void;
+  handleEdit: (item: PageItem) => void;
+  handleDelete: (id: string) => void;
+  fetchInstagramFollowers: (item: PageItem) => void;
+  extractFollowersFromImage: (item: PageItem, file: File) => void;
+}
+
+function SortablePageItem({
+  item, canEdit, canDrag, user, expandedItems, setExpandedItems,
+  failedAvatars, setFailedAvatars, fetchingFollowers, ocrFollowers,
+  toggleStar, handleEdit, handleDelete, fetchInstagramFollowers, extractFollowersFromImage,
+}: SortablePageItemProps) {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id: item.id });
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.5 : 1,
+    zIndex: isDragging ? 50 : undefined,
+  };
+
+  const toggleExpand = () => {
+    setExpandedItems(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(item.id)) newSet.delete(item.id);
+      else newSet.add(item.id);
+      return newSet;
+    });
+  };
+
+  return (
+    <div
+      ref={setNodeRef}
+      style={style}
+      className="flex items-center gap-4 p-4 rounded-xl bg-card border border-border hover:shadow-soft transition-all group"
+    >
+      {/* Drag handle */}
+      {canDrag && (
+        <button
+          {...attributes}
+          {...listeners}
+          className="cursor-grab active:cursor-grabbing shrink-0 text-muted-foreground hover:text-foreground touch-none"
+        >
+          <GripVertical className="w-4 h-4" />
+        </button>
+      )}
+
+      {/* Star Button */}
+      <Button variant="ghost" size="icon" onClick={() => toggleStar(item)} className="shrink-0">
+        <Star className={cn("w-5 h-5 transition-colors", item.is_starred ? "fill-star text-star-foreground" : "text-muted-foreground")} />
+      </Button>
+
+      {/* Icon */}
+      {isInstagramUrl(item.url) ? (
+        item.avatar_url && !failedAvatars.has(item.id) ? (
+          <div className="w-12 h-12 rounded-full shrink-0 bg-gradient-to-br from-purple-500 via-pink-500 to-orange-400 p-0.5">
+            <div className="w-full h-full rounded-full overflow-hidden bg-card">
+              <img
+                src={getProxiedImageUrl(item.avatar_url)}
+                alt={`${item.title} avatar`}
+                className="w-full h-full object-cover"
+                onError={() => setFailedAvatars(prev => new Set(prev).add(item.id))}
+              />
+            </div>
+          </div>
+        ) : failedAvatars.has(item.id) ? (
+          <div className="w-12 h-12 rounded-full shrink-0 bg-gradient-to-br from-purple-500 via-pink-500 to-orange-400 p-0.5">
+            <div className="w-full h-full rounded-full bg-card flex items-center justify-center">
+              <span className="text-sm font-bold text-pink-500">{item.title[0]?.toUpperCase() || '?'}</span>
+            </div>
+          </div>
+        ) : (
+          <InstagramAvatar username={getInstagramUsername(item.url)} size="md" />
+        )
+      ) : (
+        <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center shrink-0 group-hover:bg-primary/20 transition-colors">
+          {item.url ? <Link2 className="w-5 h-5 text-primary" /> : <FileText className="w-5 h-5 text-primary" />}
+        </div>
+      )}
+
+      {/* Content */}
+      <div className="flex-1 min-w-0">
+        <div className="flex items-center gap-2">
+          {item.content && (
+            <Button variant="ghost" size="icon" className="h-6 w-6 p-0 shrink-0" onClick={(e) => { e.stopPropagation(); toggleExpand(); }}>
+              {expandedItems.has(item.id) ? <ChevronDown className="w-4 h-4 text-muted-foreground" /> : <ChevronRight className="w-4 h-4 text-muted-foreground" />}
+            </Button>
+          )}
+          {isInstagramUrl(item.url) && <Instagram className="w-4 h-4 text-pink-500 shrink-0" />}
+          <h3
+            className={cn("font-semibold truncate", item.content && "cursor-pointer hover:text-primary transition-colors")}
+            onClick={() => item.content && toggleExpand()}
+          >
+            {item.title}
+          </h3>
+          {item.followers_count && (
+            <span className="flex items-center gap-1 text-xs text-muted-foreground shrink-0">
+              <Users className="w-3 h-3" />
+              {formatFollowers(item.followers_count)}
+            </span>
+          )}
+        </div>
+        {item.content && !expandedItems.has(item.id) && <p className="text-sm text-muted-foreground truncate">{item.content}</p>}
+        {item.content && expandedItems.has(item.id) && <p className="text-sm text-muted-foreground whitespace-pre-wrap mt-2">{item.content}</p>}
+      </div>
+
+      {/* Category */}
+      <span className="px-2 py-1 rounded-lg bg-muted text-xs font-medium shrink-0 hidden sm:block">{item.category || '一般'}</span>
+
+      {/* Link */}
+      {item.url && (
+        <a href={item.url} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1 text-sm text-primary hover:underline shrink-0 hidden md:flex">
+          開啟 <ExternalLink className="w-3 h-3" />
+        </a>
+      )}
+
+      {/* Actions */}
+      {(canEdit || (user && item.created_by === user.id)) && (
+        <div className="flex gap-1 shrink-0">
+          {isInstagramUrl(item.url) && (
+            <>
+              <input id={`ig-ocr-${item.id}`} type="file" accept="image/*" className="hidden"
+                onChange={(e) => { const f = e.target.files?.[0]; if (f) extractFollowersFromImage(item, f); e.currentTarget.value = ''; }} />
+              <Button variant="ghost" size="icon"
+                onClick={() => (document.getElementById(`ig-ocr-${item.id}`) as HTMLInputElement | null)?.click()}
+                disabled={ocrFollowers === item.id} className="opacity-0 group-hover:opacity-100" title="用截圖辨識追蹤者數量">
+                {ocrFollowers === item.id ? <Loader2 className="w-4 h-4 animate-spin" /> : <ImageIcon className="w-4 h-4" />}
+              </Button>
+              <Button variant="ghost" size="icon" onClick={() => fetchInstagramFollowers(item)}
+                disabled={fetchingFollowers === item.id} className="opacity-0 group-hover:opacity-100" title="抓取追蹤者數量">
+                {fetchingFollowers === item.id ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
+              </Button>
+            </>
+          )}
+          <Button variant="ghost" size="icon" onClick={() => handleEdit(item)} className="opacity-0 group-hover:opacity-100">
+            <Pencil className="w-4 h-4" />
+          </Button>
+          <Button variant="ghost" size="icon" onClick={() => handleDelete(item.id)} className="opacity-0 group-hover:opacity-100 text-destructive">
+            <Trash2 className="w-4 h-4" />
+          </Button>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export function DynamicPage() {
   const { slug } = useParams<{ slug: string }>();
   const { user, role, isAdmin } = useAuth();
@@ -99,6 +280,29 @@ export function DynamicPage() {
   const [failedAvatars, setFailedAvatars] = useState<Set<string>>(new Set());
   const [expandedItems, setExpandedItems] = useState<Set<string>>(new Set());
   const [autoFetching, setAutoFetching] = useState<Set<string>>(new Set());
+
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
+  );
+
+  const handleDragEnd = useCallback(async (event: DragEndEvent) => {
+    const { active, over } = event;
+    if (!over || active.id === over.id || !page) return;
+
+    const oldIndex = items.findIndex(i => i.id === active.id);
+    const newIndex = items.findIndex(i => i.id === over.id);
+    if (oldIndex === -1 || newIndex === -1) return;
+
+    const reordered = arrayMove(items, oldIndex, newIndex);
+    setItems(reordered);
+
+    // Persist new sort_order to DB
+    const updates = reordered.map((item, idx) => 
+      supabase.from('page_items').update({ sort_order: idx }).eq('id', item.id)
+    );
+    await Promise.all(updates);
+  }, [items, page]);
 
   // Auto-fetch Instagram data (always refresh avatar URLs since they expire)
   const autoFetchInstagramData = async (igItems: PageItem[]) => {
@@ -655,219 +859,32 @@ export function DynamicPage() {
 
         {/* Items List */}
         {items.length > 0 ? (
-          <div className="space-y-3">
-            {items.map((item) => (
-              <div
-                key={item.id}
-                className="flex items-center gap-4 p-4 rounded-xl bg-card border border-border hover:shadow-soft transition-all group"
-              >
-                {/* Star Button */}
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  onClick={() => toggleStar(item)}
-                  className="shrink-0"
-                >
-                  <Star className={cn(
-                    "w-5 h-5 transition-colors",
-                    item.is_starred ? "fill-star text-star-foreground" : "text-muted-foreground"
-                  )} />
-                </Button>
-
-                {/* Icon - Manual avatar URL, Instagram auto-fetch, or generic icon */}
-                {isInstagramUrl(item.url) ? (
-                  item.avatar_url && !failedAvatars.has(item.id) ? (
-                    <div className="w-12 h-12 rounded-full shrink-0 bg-gradient-to-br from-purple-500 via-pink-500 to-orange-400 p-0.5">
-                      <div className="w-full h-full rounded-full overflow-hidden bg-card">
-                        <img
-                          src={getProxiedImageUrl(item.avatar_url)}
-                          alt={`${item.title} avatar`}
-                          className="w-full h-full object-cover"
-                          onError={() => {
-                            // Use React state to track failed avatars instead of DOM manipulation
-                            setFailedAvatars(prev => new Set(prev).add(item.id));
-                          }}
-                        />
-                      </div>
-                    </div>
-                  ) : failedAvatars.has(item.id) ? (
-                    // Fallback to first letter when avatar fails
-                    <div className="w-12 h-12 rounded-full shrink-0 bg-gradient-to-br from-purple-500 via-pink-500 to-orange-400 p-0.5">
-                      <div className="w-full h-full rounded-full bg-card flex items-center justify-center">
-                        <span className="text-sm font-bold text-pink-500">{item.title[0]?.toUpperCase() || '?'}</span>
-                      </div>
-                    </div>
-                  ) : (
-                    <InstagramAvatar username={getInstagramUsername(item.url)} size="md" />
-                  )
-                ) : (
-                  <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center shrink-0 group-hover:bg-primary/20 transition-colors">
-                    {item.url ? (
-                      <Link2 className="w-5 h-5 text-primary" />
-                    ) : (
-                      <FileText className="w-5 h-5 text-primary" />
-                    )}
-                  </div>
-                )}
-
-                {/* Content */}
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2">
-                    {/* Expand toggle */}
-                    {item.content && (
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-6 w-6 p-0 shrink-0"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setExpandedItems(prev => {
-                            const newSet = new Set(prev);
-                            if (newSet.has(item.id)) {
-                              newSet.delete(item.id);
-                            } else {
-                              newSet.add(item.id);
-                            }
-                            return newSet;
-                          });
-                        }}
-                      >
-                        {expandedItems.has(item.id) ? (
-                          <ChevronDown className="w-4 h-4 text-muted-foreground" />
-                        ) : (
-                          <ChevronRight className="w-4 h-4 text-muted-foreground" />
-                        )}
-                      </Button>
-                    )}
-                    {isInstagramUrl(item.url) && (
-                      <Instagram className="w-4 h-4 text-pink-500 shrink-0" />
-                    )}
-                    <h3 
-                      className={cn(
-                        "font-semibold truncate",
-                        item.content && "cursor-pointer hover:text-primary transition-colors"
-                      )}
-                      onClick={() => {
-                        if (item.content) {
-                          setExpandedItems(prev => {
-                            const newSet = new Set(prev);
-                            if (newSet.has(item.id)) {
-                              newSet.delete(item.id);
-                            } else {
-                              newSet.add(item.id);
-                            }
-                            return newSet;
-                          });
-                        }
-                      }}
-                    >
-                      {item.title}
-                    </h3>
-                    {item.followers_count && (
-                      <span className="flex items-center gap-1 text-xs text-muted-foreground shrink-0">
-                        <Users className="w-3 h-3" />
-                        {formatFollowers(item.followers_count)}
-                      </span>
-                    )}
-                  </div>
-                  {item.content && !expandedItems.has(item.id) && (
-                    <p className="text-sm text-muted-foreground truncate">{item.content}</p>
-                  )}
-                  {item.content && expandedItems.has(item.id) && (
-                    <p className="text-sm text-muted-foreground whitespace-pre-wrap mt-2">{item.content}</p>
-                  )}
-                </div>
-
-                {/* Category */}
-                <span className="px-2 py-1 rounded-lg bg-muted text-xs font-medium shrink-0 hidden sm:block">
-                  {item.category || '一般'}
-                </span>
-
-                {/* Link */}
-                {item.url && (
-                  <a
-                    href={item.url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="flex items-center gap-1 text-sm text-primary hover:underline shrink-0 hidden md:flex"
-                  >
-                    開啟
-                    <ExternalLink className="w-3 h-3" />
-                  </a>
-                )}
-
-                {/* Actions - show if user can edit this item (is owner or has full edit permission) */}
-                {(canEdit || (user && item.created_by === user.id)) && (
-                  <div className="flex gap-1 shrink-0">
-                    {/* Fetch Instagram followers button */}
-                    {isInstagramUrl(item.url) && (
-                      <>
-                        <input
-                          id={`ig-ocr-${item.id}`}
-                          type="file"
-                          accept="image/*"
-                          className="hidden"
-                          onChange={(e) => {
-                            const f = e.target.files?.[0];
-                            if (f) extractFollowersFromImage(item, f);
-                            // allow re-selecting same file
-                            e.currentTarget.value = '';
-                          }}
-                        />
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => {
-                            const el = document.getElementById(`ig-ocr-${item.id}`) as HTMLInputElement | null;
-                            el?.click();
-                          }}
-                          disabled={ocrFollowers === item.id}
-                          className="opacity-0 group-hover:opacity-100"
-                          title="用截圖辨識追蹤者數量"
-                        >
-                          {ocrFollowers === item.id ? (
-                            <Loader2 className="w-4 h-4 animate-spin" />
-                          ) : (
-                            <ImageIcon className="w-4 h-4" />
-                          )}
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => fetchInstagramFollowers(item)}
-                          disabled={fetchingFollowers === item.id}
-                          className="opacity-0 group-hover:opacity-100"
-                          title="抓取追蹤者數量"
-                        >
-                          {fetchingFollowers === item.id ? (
-                            <Loader2 className="w-4 h-4 animate-spin" />
-                          ) : (
-                            <RefreshCw className="w-4 h-4" />
-                          )}
-                        </Button>
-                      </>
-                    )}
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      onClick={() => handleEdit(item)}
-                      className="opacity-0 group-hover:opacity-100"
-                    >
-                      <Pencil className="w-4 h-4" />
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      onClick={() => handleDelete(item.id)}
-                      className="opacity-0 group-hover:opacity-100 text-destructive"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </Button>
-                  </div>
-                )}
+          <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+            <SortableContext items={items.map(i => i.id)} strategy={verticalListSortingStrategy}>
+              <div className="space-y-3">
+                {items.map((item) => (
+                  <SortablePageItem
+                    key={item.id}
+                    item={item}
+                    canEdit={canEdit}
+                    canDrag={canEdit}
+                    user={user}
+                    expandedItems={expandedItems}
+                    setExpandedItems={setExpandedItems}
+                    failedAvatars={failedAvatars}
+                    setFailedAvatars={setFailedAvatars}
+                    fetchingFollowers={fetchingFollowers}
+                    ocrFollowers={ocrFollowers}
+                    toggleStar={toggleStar}
+                    handleEdit={handleEdit}
+                    handleDelete={handleDelete}
+                    fetchInstagramFollowers={fetchInstagramFollowers}
+                    extractFollowersFromImage={extractFollowersFromImage}
+                  />
+                ))}
               </div>
-            ))}
-          </div>
+            </SortableContext>
+          </DndContext>
         ) : (
           <div className="text-center py-12 bg-muted/30 rounded-xl">
             <FileText className="w-12 h-12 mx-auto mb-4 text-muted-foreground opacity-50" />
