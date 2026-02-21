@@ -9,7 +9,8 @@ import {
   Edit3,
   Loader2,
   ChevronDown,
-  ChevronRight
+  ChevronRight,
+  GripVertical
 } from 'lucide-react';
 import {
   DropdownMenu,
@@ -20,6 +21,8 @@ import {
 import { cn } from '@/lib/utils';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
+import { useSortable } from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
 
 interface Note {
   id: string;
@@ -38,6 +41,7 @@ interface NoteRowProps {
   onUpdate: (id: string, updates: Partial<Note>) => void;
   isEditing: boolean;
   setEditingId: (id: string | null) => void;
+  isDraggable?: boolean;
 }
 
 export function NoteRow({ 
@@ -46,13 +50,30 @@ export function NoteRow({
   onDelete, 
   onUpdate, 
   isEditing, 
-  setEditingId 
+  setEditingId,
+  isDraggable = false,
 }: NoteRowProps) {
   const [editTitle, setEditTitle] = useState(note.title);
   const [editContent, setEditContent] = useState(note.content || '');
   const [isDeleting, setIsDeleting] = useState(false);
   const [isExpanded, setIsExpanded] = useState(false);
   const { toast } = useToast();
+
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id: note.id, disabled: !isDraggable });
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.5 : 1,
+    zIndex: isDragging ? 50 : undefined,
+  };
 
   const handleSave = () => {
     onUpdate(note.id, { title: editTitle, content: editContent });
@@ -68,21 +89,18 @@ export function NoteRow({
   const handleDelete = async () => {
     setIsDeleting(true);
     try {
-      // First update Google Sheet to mark as deleted (use content for matching since title column may be empty)
       const { data, error } = await supabase.functions.invoke('update-google-sheet', {
         body: {
           action: 'markDeleted',
           title: note.title,
-          content: note.content, // Send content for matching
+          content: note.content,
           value: '刪除',
         },
       });
 
       if (error) {
         console.error('Failed to update Google Sheet:', error);
-        // Don't show error toast - just log it, note will still be deleted
       } else if (data?.message?.includes('找不到')) {
-        // Note wasn't from Google Sheet, no need to update
         console.log('Note not found in Google Sheet (may be local only)');
       } else {
         toast({
@@ -91,11 +109,9 @@ export function NoteRow({
         });
       }
 
-      // Delete from database regardless
       onDelete(note.id, note.title);
     } catch (err) {
       console.error('Delete error:', err);
-      // Still delete from database
       onDelete(note.id, note.title);
     } finally {
       setIsDeleting(false);
@@ -131,12 +147,25 @@ export function NoteRow({
 
   return (
     <div 
+      ref={setNodeRef}
+      style={style}
       className={cn(
         "bg-card border border-border rounded-xl transition-all hover:shadow-md group",
         note.is_pinned && "border-primary/30 bg-primary/5"
       )}
     >
       <div className="flex items-center gap-3 p-4">
+        {/* Drag handle */}
+        {isDraggable && (
+          <button
+            {...attributes}
+            {...listeners}
+            className="cursor-grab active:cursor-grabbing shrink-0 text-muted-foreground hover:text-foreground touch-none"
+          >
+            <GripVertical className="w-4 h-4" />
+          </button>
+        )}
+
         {/* Expand toggle */}
         {note.content && (
           <Button
@@ -158,7 +187,7 @@ export function NoteRow({
           <Pin className="w-4 h-4 text-primary flex-shrink-0" />
         )}
         
-        {/* Title - clickable to expand */}
+        {/* Title */}
         <div 
           className={cn(
             "flex-1 min-w-0",
