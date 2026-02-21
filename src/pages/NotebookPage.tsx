@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/integrations/supabase/client';
 import { Card, CardContent } from '@/components/ui/card';
@@ -18,6 +18,21 @@ import {
   Check
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import {
+  DndContext,
+  closestCenter,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+} from '@dnd-kit/core';
+import {
+  arrayMove,
+  SortableContext,
+  sortableKeyboardCoordinates,
+  verticalListSortingStrategy,
+} from '@dnd-kit/sortable';
 
 interface Note {
   id: string;
@@ -27,6 +42,7 @@ interface Note {
   color: string;
   created_at: string;
   updated_at: string;
+  sort_order?: number;
 }
 
 export function NotebookPage() {
@@ -40,18 +56,21 @@ export function NotebookPage() {
   const { toast } = useToast();
   const { isSyncing, lastSyncTime, error: syncError, sync } = useGoogleSheetSync(isAdmin);
 
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
+  );
+
   useEffect(() => {
     if (user && isAdmin) fetchNotes();
   }, [user, isAdmin]);
 
-  // Refetch notes after sync
   useEffect(() => {
     if (lastSyncTime && isAdmin) {
       fetchNotes();
     }
   }, [lastSyncTime, isAdmin]);
 
-  // Only admin can access this page
   if (!isAdmin) {
     return (
       <div className="page-container">
@@ -73,10 +92,48 @@ export function NotebookPage() {
       .from('notes')
       .select('*')
       .order('is_pinned', { ascending: false })
+      .order('sort_order', { ascending: true })
       .order('updated_at', { ascending: false });
 
     if (data) setNotes(data);
     if (error) console.error('Error fetching notes:', error);
+  };
+
+  const handleDragEnd = async (event: DragEndEvent) => {
+    const { active, over } = event;
+    if (!over || active.id === over.id) return;
+
+    // Determine which list the drag happened in
+    const allFiltered = notes.filter(note =>
+      note.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      note.content?.toLowerCase().includes(searchQuery.toLowerCase())
+    );
+    const pinnedNotes = allFiltered.filter(n => n.is_pinned);
+    const otherNotes = allFiltered.filter(n => !n.is_pinned);
+
+    // Check if both items are in the same group
+    const activeInPinned = pinnedNotes.some(n => n.id === active.id);
+    const overInPinned = pinnedNotes.some(n => n.id === over.id);
+
+    if (activeInPinned !== overInPinned) return; // Don't allow cross-group drag
+
+    const list = activeInPinned ? pinnedNotes : otherNotes;
+    const oldIndex = list.findIndex(n => n.id === active.id);
+    const newIndex = list.findIndex(n => n.id === over.id);
+    if (oldIndex === -1 || newIndex === -1) return;
+
+    const reordered = arrayMove(list, oldIndex, newIndex);
+
+    // Update full notes array
+    const otherGroup = activeInPinned ? otherNotes : pinnedNotes;
+    const newNotes = activeInPinned ? [...reordered, ...otherGroup] : [...otherGroup, ...reordered];
+    setNotes(newNotes);
+
+    // Persist sort_order
+    const updates = reordered.map((note, idx) =>
+      supabase.from('notes').update({ sort_order: idx }).eq('id', note.id)
+    );
+    await Promise.all(updates);
   };
 
   const createNote = async () => {
@@ -217,52 +274,60 @@ export function NotebookPage() {
           </Card>
         )}
 
-        {/* Pinned notes */}
-        {pinnedNotes.length > 0 && (
-          <div className="mb-6">
-            <h2 className="text-sm font-medium text-muted-foreground mb-3 flex items-center gap-2">
-              <Pin className="w-4 h-4" />
-              已釘選 ({pinnedNotes.length})
-            </h2>
-            <div className="space-y-2">
-              {pinnedNotes.map((note) => (
-                <NoteRow 
-                  key={note.id} 
-                  note={note} 
-                  onTogglePin={togglePin}
-                  onDelete={deleteNote}
-                  onUpdate={updateNote}
-                  isEditing={editingId === note.id}
-                  setEditingId={setEditingId}
-                />
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* Other notes */}
-        {otherNotes.length > 0 && (
-          <div>
-            {pinnedNotes.length > 0 && (
-              <h2 className="text-sm font-medium text-muted-foreground mb-3">
-                其他筆記 ({otherNotes.length})
+        <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+          {/* Pinned notes */}
+          {pinnedNotes.length > 0 && (
+            <div className="mb-6">
+              <h2 className="text-sm font-medium text-muted-foreground mb-3 flex items-center gap-2">
+                <Pin className="w-4 h-4" />
+                已釘選 ({pinnedNotes.length})
               </h2>
-            )}
-            <div className="space-y-2">
-              {otherNotes.map((note) => (
-                <NoteRow 
-                  key={note.id} 
-                  note={note} 
-                  onTogglePin={togglePin}
-                  onDelete={deleteNote}
-                  onUpdate={updateNote}
-                  isEditing={editingId === note.id}
-                  setEditingId={setEditingId}
-                />
-              ))}
+              <SortableContext items={pinnedNotes.map(n => n.id)} strategy={verticalListSortingStrategy}>
+                <div className="space-y-2">
+                  {pinnedNotes.map((note) => (
+                    <NoteRow 
+                      key={note.id} 
+                      note={note} 
+                      onTogglePin={togglePin}
+                      onDelete={deleteNote}
+                      onUpdate={updateNote}
+                      isEditing={editingId === note.id}
+                      setEditingId={setEditingId}
+                      isDraggable
+                    />
+                  ))}
+                </div>
+              </SortableContext>
             </div>
-          </div>
-        )}
+          )}
+
+          {/* Other notes */}
+          {otherNotes.length > 0 && (
+            <div>
+              {pinnedNotes.length > 0 && (
+                <h2 className="text-sm font-medium text-muted-foreground mb-3">
+                  其他筆記 ({otherNotes.length})
+                </h2>
+              )}
+              <SortableContext items={otherNotes.map(n => n.id)} strategy={verticalListSortingStrategy}>
+                <div className="space-y-2">
+                  {otherNotes.map((note) => (
+                    <NoteRow 
+                      key={note.id} 
+                      note={note} 
+                      onTogglePin={togglePin}
+                      onDelete={deleteNote}
+                      onUpdate={updateNote}
+                      isEditing={editingId === note.id}
+                      setEditingId={setEditingId}
+                      isDraggable
+                    />
+                  ))}
+                </div>
+              </SortableContext>
+            </div>
+          )}
+        </DndContext>
 
         {/* Empty state */}
         {filteredNotes.length === 0 && !isCreating && (
